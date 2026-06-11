@@ -27,6 +27,8 @@ export default function App() {
     selectInput,
     inputCount,
     start,
+    playNote,
+    stopNote,
   } = useMidi({
     onNoteOn: recorder.handleNoteOn,
     onNoteOff: recorder.handleNoteOff,
@@ -134,10 +136,10 @@ export default function App() {
               {sortedActiveNotes.length === 0 ? (
                 <span className="note-display__hint">
                   {recorder.isRecording
-                    ? 'Grabando… toca una tecla del Akai'
+                    ? 'Grabando… toca el Akai o haz clic en el teclado'
                     : recorder.isPlaying
                       ? 'Reproduciendo…'
-                      : 'Toca una tecla del Akai…'}
+                      : 'Toca el Akai o haz clic en el teclado…'}
                 </span>
               ) : (
                 <span className="note-display__chord">
@@ -146,13 +148,17 @@ export default function App() {
               )}
             </div>
 
-            <Keyboard activeNotes={allActiveNotes} />
+            <Keyboard
+              activeNotes={allActiveNotes}
+              onKeyDown={playNote}
+              onKeyUp={stopNote}
+            />
           </>
         )}
       </main>
 
       <footer className="app__footer">
-        <small>Graba una secuencia con el Akai, cambia de instrumento y guarda tu idea como .json.</small>
+        <small>Conecta tu Akai o haz clic en el teclado — todo se graba y persiste igual.</small>
       </footer>
     </div>
   )

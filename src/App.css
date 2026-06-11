@@ -196,6 +196,10 @@
   border-top: none;
   border-radius: 0 0 6px 6px;
   margin: 0 -1px 0 0; /* solapan bordes */
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
   display: flex;
   align-items: flex-end;
   justify-content: center;
