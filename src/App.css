@@ -396,6 +396,228 @@
   border: 1px solid #6ee7ff;
 }
 
+/* Panel de controles (instrumento, metrónomo, persistencia) */
+.controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+  width: 100%;
+  padding: 16px 20px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.control--inline {
+  gap: 6px;
+}
+
+.control--select {
+  position: relative;
+}
+
+.control__label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.control__select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 8px 32px 8px 12px;
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='%238a93a6'><path d='M1 1l5 5 5-5'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 10px 7px;
+  min-width: 140px;
+}
+
+.control__select:hover {
+  border-color: var(--accent);
+  background-color: #232730;
+}
+
+.control__select:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 1px;
+}
+
+.control__number {
+  width: 72px;
+  padding: 6px 8px;
+  background: var(--bg-input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 13px;
+  text-align: center;
+}
+
+.control__number:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.control__number:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Quitamos las flechas nativas del input number para un look limpio */
+.control__number::-webkit-outer-spin-button,
+.control__number::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.control__number[type=number] {
+  -moz-appearance: textfield;
+}
+
+.control__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform 0.1s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.control__button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.control__button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.control__button--secondary:not(:disabled):hover {
+  background: rgba(110, 231, 255, 0.12);
+  border-color: #6ee7ff;
+  color: #6ee7ff;
+}
+
+.control__button--danger:not(:disabled):hover {
+  background: rgba(255, 107, 107, 0.12);
+  border-color: #ff6b6b;
+  color: #ff8a8a;
+}
+
+.control__icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* Metrónomo */
+.metronome {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.metronome__toggle {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 36px;
+  height: 20px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.metronome__toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: #6b7280;
+  border-radius: 50%;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.metronome__toggle:checked {
+  background: rgba(110, 231, 255, 0.2);
+  border-color: #6ee7ff;
+}
+
+.metronome__toggle:checked::after {
+  transform: translateX(16px);
+  background: #6ee7ff;
+}
+
+.metronome__toggle:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+.metronome__pulse {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2a2f3a;
+  border: 1px solid var(--border);
+  transition: background 0.04s ease, box-shadow 0.04s ease, transform 0.04s ease;
+}
+
+.metronome__pulse.is-on {
+  background: #4a5568;
+  border-color: #4a5568;
+}
+
+.metronome__pulse.is-active {
+  background: #6ee7ff;
+  border-color: #6ee7ff;
+  box-shadow: 0 0 12px rgba(110, 231, 255, 0.7);
+  transform: scale(1.3);
+}
+
+.metronome__bpm {
+  margin-left: 4px;
+}
+
+/* Persistencia */
+.persistence {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 @media (max-width: 720px) {
   .app {
     padding: 24px 12px;
@@ -444,5 +666,18 @@
     width: 100%;
     justify-content: center;
     margin-left: 0;
+  }
+  .controls {
+    padding: 12px;
+    gap: 12px;
+    justify-content: flex-start;
+  }
+  .control__select {
+    min-width: 120px;
+  }
+  .metronome,
+  .persistence {
+    width: 100%;
+    justify-content: space-between;
   }
 }

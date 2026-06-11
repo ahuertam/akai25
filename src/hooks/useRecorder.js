@@ -1,6 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as Tone from 'tone'
-import { midiToFrequency, synth } from '../audio/synth.js'
+import { midiToFrequency, getSynth } from '../audio/synth.js'
+
+const STORAGE_KEY = 'akai25.recording.v1'
+
+/** Lee eventos grabados persistidos en localStorage. Devuelve [] si falla. */
+function loadPersistedEvents() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed?.events)) return []
+    // Validación mínima: cada evento debe tener los 4 campos numéricos.
+    return parsed.events.filter((e) =>
+      Number.isFinite(e.note) && Number.isFinite(e.startTime) &&
+      Number.isFinite(e.duration) && Number.isFinite(e.velocity)
+    )
+  } catch {
+    return []
+  }
+}
 
 /**
  * Hook que gestiona la grabación y reproducción de una secuencia MIDI.
@@ -23,11 +42,14 @@ import { midiToFrequency, synth } from '../audio/synth.js'
  *   - stopRecording():     detiene la grabación (cierra notas colgadas).
  *   - playRecording():     reproduce la grabación con Tone.Transport.
  *   - stopPlayback():      detiene la reproducción.
+ *   - clearRecording():    borra la grabación actual (y la persistida).
+ *   - loadRecording(events): reemplaza la grabación actual con un array.
  *   - handleNoteOn(midi, velocity): suscriptor para Note On del hook MIDI.
  *   - handleNoteOff(midi):          suscriptor para Note Off del hook MIDI.
  */
 export function useRecorder() {
-  const [recordedEvents, setRecordedEvents] = useState([])
+  // Inicializamos desde localStorage para que la grabación sobreviva a recargas.
+  const [recordedEvents, setRecordedEvents] = useState(loadPersistedEvents)
   const [isRecording, setIsRecording] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [playbackActiveNotes, setPlaybackActiveNotes] = useState(new Set())
@@ -146,7 +168,10 @@ export function useRecorder() {
 
       // Audio: el callback recibe el tiempo exacto del AudioContext.
       transport.schedule((time) => {
-        synth.triggerAttackRelease(freq, event.duration, time, event.velocity)
+        const currentSynth = getSynth()
+        if (currentSynth) {
+          currentSynth.triggerAttackRelease(freq, event.duration, time, event.velocity)
+        }
       }, event.startTime)
 
       // Visual: Tone.Draw se sincroniza con requestAnimationFrame, así que
@@ -200,6 +225,32 @@ export function useRecorder() {
     }
   }, [])
 
+  // Persistencia automática: cada cambio en recordedEvents se guarda en
+  // localStorage para que la grabación sobreviva a recargas.
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ version: 1, events: recordedEvents }),
+      )
+    } catch {
+      // localStorage lleno o no disponible → ignorar.
+    }
+  }, [recordedEvents])
+
+  /** Borra la grabación (memoria + localStorage). Detiene playback si activo. */
+  const clearRecording = useCallback(() => {
+    if (isPlayingRef.current) stopPlaybackInternal()
+    setRecordedEvents([])
+  }, [])
+
+  /** Reemplaza la grabación actual (usado al cargar un .json). */
+  const loadRecording = useCallback((events) => {
+    if (isPlayingRef.current) stopPlaybackInternal()
+    if (!Array.isArray(events)) return
+    setRecordedEvents(events)
+  }, [])
+
   return {
     recordedEvents,
     isRecording,
@@ -209,6 +260,8 @@ export function useRecorder() {
     stopRecording,
     playRecording,
     stopPlayback,
+    clearRecording,
+    loadRecording,
     handleNoteOn,
     handleNoteOff,
   }

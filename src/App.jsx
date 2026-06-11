@@ -1,15 +1,33 @@
 import { useMemo } from 'react'
 import { useMidi } from './hooks/useMidi.js'
 import { useRecorder } from './hooks/useRecorder.js'
+import { useInstrument } from './hooks/useInstrument.js'
+import { useMetronome } from './hooks/useMetronome.js'
 import { Keyboard } from './components/Keyboard.jsx'
 import { Transport } from './components/Transport.jsx'
+import { InstrumentSelector } from './components/InstrumentSelector.jsx'
+import { MetronomeControl } from './components/MetronomeControl.jsx'
+import { DeviceSelector } from './components/DeviceSelector.jsx'
+import { PersistenceControls } from './components/PersistenceControls.jsx'
 import { midiToNoteName } from './utils/notes.js'
 import './App.css'
 
 export default function App() {
   const recorder = useRecorder()
+  const instrument = useInstrument()
+  const metronome = useMetronome()
 
-  const { isReady, deviceName, activeNotes, error, inputCount, start } = useMidi({
+  const {
+    isReady,
+    deviceName,
+    activeNotes,
+    error,
+    inputs,
+    selectedInputId,
+    selectInput,
+    inputCount,
+    start,
+  } = useMidi({
     onNoteOn: recorder.handleNoteOn,
     onNoteOff: recorder.handleNoteOff,
   })
@@ -23,8 +41,7 @@ export default function App() {
     return merged
   }, [activeNotes, recorder.playbackActiveNotes])
 
-  // Notas activas ordenadas (solo del MIDI en vivo, no del playback,
-  // para que el display grande no mezcle melodía con eco).
+  // Notas activas ordenadas (solo del MIDI en vivo, no del playback).
   const sortedActiveNotes = useMemo(
     () => Array.from(activeNotes).sort((a, b) => a - b),
     [activeNotes],
@@ -34,7 +51,7 @@ export default function App() {
     <div className="app">
       <header className="app__header">
         <h1>AKAI25 Web DAW</h1>
-        <p className="app__subtitle">Hito 3 · Grabación y Secuenciador</p>
+        <p className="app__subtitle">Hito 4 · Pulido, Persistencia y Extras</p>
       </header>
 
       <main className="app__main">
@@ -72,6 +89,35 @@ export default function App() {
               </div>
             </section>
 
+            <DeviceSelector
+              inputs={inputs}
+              selectedInputId={selectedInputId}
+              onSelect={selectInput}
+            />
+
+            <section className="controls">
+              <InstrumentSelector
+                instrumentId={instrument.instrumentId}
+                available={instrument.available}
+                onChange={instrument.setInstrument}
+              />
+              <MetronomeControl
+                isEnabled={metronome.isEnabled}
+                isTicking={metronome.isTicking}
+                bpm={metronome.bpm}
+                minBpm={metronome.minBpm}
+                maxBpm={metronome.maxBpm}
+                onToggle={metronome.toggle}
+                onBpmChange={metronome.setBpm}
+              />
+              <PersistenceControls
+                events={recorder.recordedEvents}
+                isRecording={recorder.isRecording}
+                isPlaying={recorder.isPlaying}
+                onClear={recorder.clearRecording}
+              />
+            </section>
+
             <Transport
               isRecording={recorder.isRecording}
               isPlaying={recorder.isPlaying}
@@ -106,7 +152,7 @@ export default function App() {
       </main>
 
       <footer className="app__footer">
-        <small>Graba una secuencia con el Akai y luego dale a Reproducir para escucharla.</small>
+        <small>Graba una secuencia con el Akai, cambia de instrumento y guarda tu idea como .json.</small>
       </footer>
     </div>
   )
