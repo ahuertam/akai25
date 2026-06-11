@@ -1,0 +1,51 @@
+/* Reset y variables base para AKAI25 Web DAW */
+:root {
+  --bg: #0f1115;
+  --bg-elevated: #181b22;
+  --bg-input: #1f232c;
+  --border: #2a2f3a;
+  --text: #e6e8ee;
+  --text-dim: #8a93a6;
+  --text-muted: #5b6271;
+  --accent: #aa3bff;
+  --accent-bright: #c084fc;
+  --error: #ff6b6b;
+  --error-bg: rgba(255, 107, 107, 0.12);
+
+  --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  color-scheme: dark;
+  color: var(--text);
+  background: var(--bg);
+  font: 16px/1.5 var(--sans);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  background: radial-gradient(circle at top, #1a1f2c 0%, var(--bg) 60%);
+}
+
+#root {
+  min-height: 100svh;
+}
+
+h1, h2, h3 {
+  margin: 0;
+  color: var(--text);
+  font-weight: 600;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
