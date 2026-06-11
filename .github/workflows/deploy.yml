@@ -1,25 +1,23 @@
 name: Deploy to GitHub Pages
 
-# Disparamos en cada push a main y también manualmente desde la UI de GitHub.
+# Disparamos en cada push a main y también manualmente desde la UI.
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-# Permisos necesarios para que el runner pueda subir artefactos a Pages
-# usando OIDC (la nueva forma; ya no hace falta PAT).
+# `contents: write` es necesario para que el runner pueda hacer push a
+# la rama `gh-pages` usando el GITHUB_TOKEN.
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
-# Evita que se ejecuten dos deploys concurrentes (cancela los anteriores).
+# Evita que se ejecuten dos deploys concurrentes.
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -37,21 +35,23 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
+      # Construimos un .nojekyll vacío para que GH Pages no procese el
+      # site con Jekyll (lo cual rompería directorios que empiezan por _).
+      # También eliminamos cualquier CNAME previo por seguridad.
+      - name: Prepare dist
+        run: |
+          touch dist/.nojekyll
+          rm -f dist/CNAME
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Deploy to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: ./dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          publish_branch: gh-pages
+          # No mantener archivos antiguos: queremos un site limpio en cada deploy.
+          keep_files: false
+          # Identidad del commit generado.
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'deploy: ${{ github.event.head_commit.message }}'
