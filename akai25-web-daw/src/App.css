@@ -6,7 +6,7 @@
   flex-direction: column;
   align-items: center;
   padding: 48px 24px;
-  gap: 48px;
+  gap: 32px;
 }
 
 .app__header {
@@ -34,10 +34,12 @@
 .app__main {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   width: 100%;
-  max-width: 640px;
+  max-width: 960px;
+  gap: 20px;
 }
 
 .app__footer {
@@ -93,10 +95,10 @@
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 24px 28px;
+  padding: 16px 24px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
   font-family: var(--mono);
 }
 
@@ -120,13 +122,6 @@
   word-break: break-word;
 }
 
-.status__value--notes {
-  color: var(--accent-bright);
-  font-size: 18px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-}
-
 .status--error {
   border-color: var(--error);
   background: var(--error-bg);
@@ -136,13 +131,147 @@
   text-align: left;
 }
 
-@media (max-width: 600px) {
+/* Display grande de notas */
+.note-display {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  letter-spacing: 0.05em;
+  text-align: center;
+  width: 100%;
+}
+
+.note-display__hint {
+  color: var(--text-muted);
+  font-size: 14px;
+  font-style: italic;
+}
+
+.note-display__chord {
+  color: var(--accent-bright);
+  font-size: 36px;
+  font-weight: 600;
+  text-shadow: 0 0 24px rgba(192, 132, 252, 0.4);
+  transition: text-shadow 0.1s ease;
+}
+
+/* Teclado virtual */
+.keyboard {
+  position: relative;
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg) 100%);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  user-select: none;
+  touch-action: none;
+}
+
+.keyboard__row {
+  position: relative;
+  display: flex;
+  height: 200px;
+  z-index: 1;
+}
+
+.keyboard__black-layer {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  height: 130px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Tecla blanca */
+.key--white {
+  position: relative;
+  flex: 1 1 0;
+  background: linear-gradient(180deg, #fafaf7 0%, #e8e6df 100%);
+  border: 1px solid #b8b5ad;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  margin: 0 -1px 0 0; /* solapan bordes */
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 10px;
+  color: #6a6a6a;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  transition: background 0.04s ease, color 0.04s ease, transform 0.04s ease;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.08);
+}
+
+.key--white:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #f0eee7 100%);
+}
+
+.key--white.key--active {
+  background: linear-gradient(180deg, var(--accent-bright) 0%, var(--accent) 100%);
+  color: #ffffff;
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 -3px 0 rgba(0, 0, 0, 0.15),
+    0 0 20px rgba(192, 132, 252, 0.5);
+}
+
+/* Tecla negra */
+.key--black {
+  position: absolute;
+  top: 0;
+  height: 130px;
+  background: linear-gradient(180deg, #2a2a30 0%, #0f0f14 100%);
+  border: 1px solid #000;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+  color: #888;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: background 0.04s ease, color 0.04s ease, transform 0.04s ease;
+  box-shadow:
+    inset 0 -2px 0 rgba(255, 255, 255, 0.05),
+    0 4px 8px rgba(0, 0, 0, 0.4);
+}
+
+.key--black:hover {
+  background: linear-gradient(180deg, #35353d 0%, #1a1a20 100%);
+}
+
+.key--black.key--active {
+  background: linear-gradient(180deg, #6ee7ff 0%, #aa3bff 100%);
+  color: #ffffff;
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 -2px 0 rgba(255, 255, 255, 0.15),
+    0 0 18px rgba(110, 231, 255, 0.6);
+}
+
+/* Etiqueta: la ocultamos en teclas C/D cuando hay muchas teclas (móvil)
+   y la mostramos en C para referencia. */
+.key__label {
+  pointer-events: none;
+}
+
+@media (max-width: 720px) {
   .app {
-    padding: 24px 16px;
-    gap: 32px;
+    padding: 24px 12px;
+    gap: 20px;
   }
   .app__header h1 {
-    font-size: 32px;
+    font-size: 30px;
   }
   .connect-button {
     padding: 32px 32px;
@@ -153,5 +282,22 @@
   .status__row {
     grid-template-columns: 1fr;
     gap: 4px;
+  }
+  .keyboard__row {
+    height: 140px;
+  }
+  .keyboard__black-layer {
+    height: 90px;
+  }
+  .key--white {
+    font-size: 8px;
+    padding-bottom: 6px;
+  }
+  .key--black {
+    height: 90px;
+    font-size: 7px;
+  }
+  .note-display__chord {
+    font-size: 24px;
   }
 }
