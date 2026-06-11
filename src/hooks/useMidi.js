@@ -1,36 +1,50 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { startAudio, triggerNote, releaseNote, releaseAll } from '../audio/synth.js'
 
 // Status bytes del protocolo MIDI que nos interesan.
 const NOTE_ON = 0x90
 const NOTE_OFF = 0x80
 
+const DEVICE_STORAGE_KEY = 'akai25.midiDevice'
+
+/** Lee el dispositivo persistido en localStorage (o null). */
+function readPersistedDevice() {
+  try {
+    return localStorage.getItem(DEVICE_STORAGE_KEY) || null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Hook que gestiona la conexión MIDI y la traduce a llamadas al sintetizador.
  *
  * Argumentos:
  *   - onNoteOn:  callback opcional (midi, velocity) llamado en cada Note On.
- *                Útil para que el módulo de grabación se entere de los eventos.
  *   - onNoteOff: callback opcional (midi) llamado en cada Note Off.
  *
  * Devuelve:
- *   - isReady:   true cuando el usuario hizo clic en "Conectar" y se concedió acceso.
- *   - deviceName: nombre del primer input MIDI detectado (null si no hay).
+ *   - isReady:   true cuando el usuario hizo clic en "Conectar".
+ *   - deviceName: nombre del dispositivo EFFECTIVAMENTE activo
+ *                 (el seleccionado o el primero disponible si no hay selección).
  *   - activeNotes: Set<number> con las notas MIDI actualmente presionadas.
  *   - error:     mensaje de error legible (o null).
- *   - start():   función a llamar desde un gesto de usuario para inicializar todo.
- *   - inputCount: número de inputs MIDI conectados (útil para feedback).
+ *   - start():   función a llamar desde un gesto de usuario para inicializar.
+ *   - inputs:    array [{ id, name }] con todos los inputs MIDI disponibles.
+ *   - selectedInputId: id del input que está procesando eventos (o null).
+ *   - selectInput(id): fija el input activo (para cuando hay 2+ dispositivos).
+ *   - inputCount: número de inputs MIDI conectados.
  */
 export function useMidi({ onNoteOn, onNoteOff } = {}) {
   const [isReady, setIsReady] = useState(false)
-  const [deviceName, setDeviceName] = useState(null)
+  const [inputs, setInputs] = useState([]) // [{ id, name }]
+  const [selectedInputId, setSelectedInputId] = useState(readPersistedDevice)
   const [activeNotes, setActiveNotes] = useState(new Set())
   const [error, setError] = useState(null)
-  const [inputCount, setInputCount] = useState(0)
 
   // Mantenemos referencias para no recrear listeners en cada render.
   const midiAccessRef = useRef(null)
-  const inputsRef = useRef(new Map()) // id -> { input, name }
+  const inputsRef = useRef(new Map()) // id -> MIDIInput
 
   // Refs a los callbacks externos para que el handler siempre vea la versión
   // más reciente sin necesidad de re-suscribirse a onmidimessage.
@@ -41,11 +55,47 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
     onNoteOffRef.current = onNoteOff
   }, [onNoteOn, onNoteOff])
 
+  // El id "efectivo" es el seleccionado por el usuario, o el primero
+  // disponible si la selección desapareció. Lo derivamos en render (no
+  // con un effect + setState) para evitar renders en cascada.
+  const effectiveSelectedInputId = useMemo(() => {
+    if (inputs.length === 0) return null
+    if (selectedInputId && inputs.some((i) => i.id === selectedInputId)) {
+      return selectedInputId
+    }
+    return inputs[0].id
+  }, [inputs, selectedInputId])
+
+  // El handler MIDI (registrado una sola vez por input) lee el id efectivo
+  // desde un ref. Mantenemos el ref sincronizado con el valor derivado.
+  const effectiveSelectedInputIdRef = useRef(effectiveSelectedInputId)
+  useEffect(() => {
+    effectiveSelectedInputIdRef.current = effectiveSelectedInputId
+  }, [effectiveSelectedInputId])
+
+  // Persiste la selección del usuario (no la efectiva).
+  useEffect(() => {
+    try {
+      if (selectedInputId) {
+        localStorage.setItem(DEVICE_STORAGE_KEY, selectedInputId)
+      } else {
+        localStorage.removeItem(DEVICE_STORAGE_KEY)
+      }
+    } catch {
+      // localStorage no disponible → ignorar.
+    }
+  }, [selectedInputId])
+
   // Suscribe un input MIDI al handler de mensajes.
   const attachInput = useCallback((input) => {
     if (inputsRef.current.has(input.id)) return
 
     input.onmidimessage = (event) => {
+      // event.target es el MIDIInput que recibió el mensaje.
+      // Si el usuario eligió un dispositivo concreto, ignoramos los demás.
+      const active = effectiveSelectedInputIdRef.current
+      if (active && event.target.id !== active) return
+
       const [statusByte, note, rawVelocity] = event.data
       const command = statusByte & 0xf0
       const velocity = rawVelocity / 127
@@ -72,7 +122,7 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
       // Ignoramos el resto (control change, pitch bend, etc.) por ahora.
     }
 
-    inputsRef.current.set(input.id, { input, name: input.name })
+    inputsRef.current.set(input.id, input)
   }, [])
 
   // Recorre los inputs disponibles y los suscribe. También actualiza estado.
@@ -91,15 +141,17 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
     for (const id of inputsRef.current.keys()) {
       if (!currentIds.has(id)) {
         const removed = inputsRef.current.get(id)
-        removed?.input?.onmidimessage === null
+        if (removed) removed.onmidimessage = null
         inputsRef.current.delete(id)
       }
     }
 
-    // Actualiza el nombre del primer input disponible.
-    const first = access.inputs.values().next().value
-    setDeviceName(first ? first.name : null)
-    setInputCount(access.inputs.size)
+    // Actualiza la lista observable de inputs.
+    const list = Array.from(access.inputs.values()).map((i) => ({
+      id: i.id,
+      name: i.name || '(sin nombre)',
+    }))
+    setInputs(list)
   }, [attachInput])
 
   // Reaccionamos a conexiones/desconexiones en caliente.
@@ -118,7 +170,7 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
     const inputs = inputsRef.current
     return () => {
       releaseAll()
-      for (const { input } of inputs.values()) {
+      for (const input of inputs.values()) {
         input.onmidimessage = null
       }
       inputs.clear()
@@ -149,5 +201,23 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
     }
   }, [isReady, refreshInputs])
 
-  return { isReady, deviceName, activeNotes, error, inputCount, start }
+  const selectInput = useCallback((id) => {
+    setSelectedInputId(id)
+  }, [])
+
+  // Nombre del dispositivo que está activo AHORA.
+  const activeInput = inputs.find((i) => i.id === effectiveSelectedInputId)
+  const deviceName = activeInput ? activeInput.name : null
+
+  return {
+    isReady,
+    deviceName,
+    activeNotes,
+    error,
+    inputs,
+    selectedInputId: effectiveSelectedInputId,
+    selectInput,
+    inputCount: inputs.length,
+    start,
+  }
 }
