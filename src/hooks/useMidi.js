@@ -30,6 +30,10 @@ function readPersistedDevice() {
  *   - activeNotes: Set<number> con las notas MIDI actualmente presionadas.
  *   - error:     mensaje de error legible (o null).
  *   - start():   función a llamar desde un gesto de usuario para inicializar.
+ *   - playNote(midi, velocity): dispara una nota "virtual" (mismo efecto que
+ *                               un Note On MIDI real; útil para el clic en el
+ *                               teclado virtual).
+ *   - stopNote(midi): equivalente a un Note Off MIDI.
  *   - inputs:    array [{ id, name }] con todos los inputs MIDI disponibles.
  *   - selectedInputId: id del input que está procesando eventos (o null).
  *   - selectInput(id): fija el input activo (para cuando hay 2+ dispositivos).
@@ -86,6 +90,32 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
     }
   }, [selectedInputId])
 
+  // Lógica de Note On/Off extraída para reutilizarla desde el handler MIDI
+  // y desde el teclado virtual (clic del ratón). Mantener una sola ruta
+  // garantiza que el click se graba igual que una nota real y que el visual
+  // se actualiza de forma consistente.
+  const playNote = useCallback((midi, velocity = 0.8) => {
+    triggerNote(midi, velocity)
+    setActiveNotes((prev) => {
+      if (prev.has(midi)) return prev
+      const next = new Set(prev)
+      next.add(midi)
+      return next
+    })
+    onNoteOnRef.current?.(midi, velocity)
+  }, [])
+
+  const stopNote = useCallback((midi) => {
+    releaseNote(midi)
+    setActiveNotes((prev) => {
+      if (!prev.has(midi)) return prev
+      const next = new Set(prev)
+      next.delete(midi)
+      return next
+    })
+    onNoteOffRef.current?.(midi)
+  }, [])
+
   // Suscribe un input MIDI al handler de mensajes.
   const attachInput = useCallback((input) => {
     if (inputsRef.current.has(input.id)) return
@@ -101,29 +131,15 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
       const velocity = rawVelocity / 127
 
       if (command === NOTE_ON && rawVelocity > 0) {
-        triggerNote(note, velocity)
-        setActiveNotes((prev) => {
-          if (prev.has(note)) return prev
-          const next = new Set(prev)
-          next.add(note)
-          return next
-        })
-        onNoteOnRef.current?.(note, velocity)
+        playNote(note, velocity)
       } else if (command === NOTE_OFF || (command === NOTE_ON && rawVelocity === 0)) {
-        releaseNote(note)
-        setActiveNotes((prev) => {
-          if (!prev.has(note)) return prev
-          const next = new Set(prev)
-          next.delete(note)
-          return next
-        })
-        onNoteOffRef.current?.(note)
+        stopNote(note)
       }
       // Ignoramos el resto (control change, pitch bend, etc.) por ahora.
     }
 
     inputsRef.current.set(input.id, input)
-  }, [])
+  }, [playNote, stopNote])
 
   // Recorre los inputs disponibles y los suscribe. También actualiza estado.
   const refreshInputs = useCallback(() => {
@@ -219,5 +235,10 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
     selectInput,
     inputCount: inputs.length,
     start,
+    // API pública para disparar notas "virtuales" (p.ej. clic en el
+    // teclado virtual). Pasa por el mismo camino que un mensaje MIDI
+    // real, así que el visual y la grabación se actualizan igual.
+    playNote,
+    stopNote,
   }
 }
