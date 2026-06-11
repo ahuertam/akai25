@@ -142,6 +142,25 @@ export function triggerNote(midi, velocity = 0.8) {
 export function releaseNote(midi) {
   if (!currentSynth) return
   const freq = midiToFrequency(midi)
+
+  // Bass usa Tone.MonoSynth (monofónico). En algunas versiones de Tone.js,
+  // MonoSynth.triggerRelease(freq) no libera la nota si la frecuencia que
+  // le pasas no coincide exactamente con la almacenada internamente en
+  // el Signal `_frequency` (puede fallar por precisión de coma flotante).
+  // Como solo puede sonar una nota a la vez, releaseAll() es seguro y
+  // libera la nota actual de forma confiable.
+  if (currentInstrumentName === 'bass') {
+    if (typeof currentSynth.releaseAll === 'function') {
+      currentSynth.releaseAll()
+    } else {
+      currentSynth.triggerRelease(freq)
+    }
+    return
+  }
+
+  // PolySynth (Synth, Piano, FM) y PluckSynth: triggerRelease por
+  // frecuencia para liberar solo la nota soltada, sin afectar a las
+  // demás notas que estén sonando (importante al tocar acordes).
   currentSynth.triggerRelease(freq)
 }
 
