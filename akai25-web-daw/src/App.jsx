@@ -1,13 +1,30 @@
 import { useMemo } from 'react'
 import { useMidi } from './hooks/useMidi.js'
+import { useRecorder } from './hooks/useRecorder.js'
 import { Keyboard } from './components/Keyboard.jsx'
+import { Transport } from './components/Transport.jsx'
 import { midiToNoteName } from './utils/notes.js'
 import './App.css'
 
 export default function App() {
-  const { isReady, deviceName, activeNotes, error, inputCount, start } = useMidi()
+  const recorder = useRecorder()
 
-  // Notas activas ordenadas para mostrarlas como un acorde legible.
+  const { isReady, deviceName, activeNotes, error, inputCount, start } = useMidi({
+    onNoteOn: recorder.handleNoteOn,
+    onNoteOff: recorder.handleNoteOff,
+  })
+
+  // El teclado muestra tanto las notas tocadas en vivo como las que
+  // están sonando durante la reproducción.
+  const allActiveNotes = useMemo(() => {
+    if (recorder.playbackActiveNotes.size === 0) return activeNotes
+    const merged = new Set(activeNotes)
+    for (const n of recorder.playbackActiveNotes) merged.add(n)
+    return merged
+  }, [activeNotes, recorder.playbackActiveNotes])
+
+  // Notas activas ordenadas (solo del MIDI en vivo, no del playback,
+  // para que el display grande no mezcle melodía con eco).
   const sortedActiveNotes = useMemo(
     () => Array.from(activeNotes).sort((a, b) => a - b),
     [activeNotes],
@@ -17,7 +34,7 @@ export default function App() {
     <div className="app">
       <header className="app__header">
         <h1>AKAI25 Web DAW</h1>
-        <p className="app__subtitle">Hito 2 · Interfaz Visual y Feedback</p>
+        <p className="app__subtitle">Hito 3 · Grabación y Secuenciador</p>
       </header>
 
       <main className="app__main">
@@ -55,9 +72,27 @@ export default function App() {
               </div>
             </section>
 
+            <Transport
+              isRecording={recorder.isRecording}
+              isPlaying={recorder.isPlaying}
+              eventCount={recorder.recordedEvents.length}
+              onRecord={recorder.startRecording}
+              onStop={() => {
+                if (recorder.isRecording) recorder.stopRecording()
+                else if (recorder.isPlaying) recorder.stopPlayback()
+              }}
+              onPlay={recorder.playRecording}
+            />
+
             <div className="note-display" aria-live="polite">
               {sortedActiveNotes.length === 0 ? (
-                <span className="note-display__hint">Toca una tecla del Akai…</span>
+                <span className="note-display__hint">
+                  {recorder.isRecording
+                    ? 'Grabando… toca una tecla del Akai'
+                    : recorder.isPlaying
+                      ? 'Reproduciendo…'
+                      : 'Toca una tecla del Akai…'}
+                </span>
               ) : (
                 <span className="note-display__chord">
                   {sortedActiveNotes.map(midiToNoteName).join(' · ')}
@@ -65,13 +100,13 @@ export default function App() {
               )}
             </div>
 
-            <Keyboard activeNotes={activeNotes} />
+            <Keyboard activeNotes={allActiveNotes} />
           </>
         )}
       </main>
 
       <footer className="app__footer">
-        <small>Toca las teclas de tu Akai LPK25 — las teclas virtuales se iluminan al ritmo.</small>
+        <small>Graba una secuencia con el Akai y luego dale a Reproducir para escucharla.</small>
       </footer>
     </div>
   )

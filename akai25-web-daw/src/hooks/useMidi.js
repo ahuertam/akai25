@@ -8,6 +8,11 @@ const NOTE_OFF = 0x80
 /**
  * Hook que gestiona la conexión MIDI y la traduce a llamadas al sintetizador.
  *
+ * Argumentos:
+ *   - onNoteOn:  callback opcional (midi, velocity) llamado en cada Note On.
+ *                Útil para que el módulo de grabación se entere de los eventos.
+ *   - onNoteOff: callback opcional (midi) llamado en cada Note Off.
+ *
  * Devuelve:
  *   - isReady:   true cuando el usuario hizo clic en "Conectar" y se concedió acceso.
  *   - deviceName: nombre del primer input MIDI detectado (null si no hay).
@@ -16,7 +21,7 @@ const NOTE_OFF = 0x80
  *   - start():   función a llamar desde un gesto de usuario para inicializar todo.
  *   - inputCount: número de inputs MIDI conectados (útil para feedback).
  */
-export function useMidi() {
+export function useMidi({ onNoteOn, onNoteOff } = {}) {
   const [isReady, setIsReady] = useState(false)
   const [deviceName, setDeviceName] = useState(null)
   const [activeNotes, setActiveNotes] = useState(new Set())
@@ -26,6 +31,15 @@ export function useMidi() {
   // Mantenemos referencias para no recrear listeners en cada render.
   const midiAccessRef = useRef(null)
   const inputsRef = useRef(new Map()) // id -> { input, name }
+
+  // Refs a los callbacks externos para que el handler siempre vea la versión
+  // más reciente sin necesidad de re-suscribirse a onmidimessage.
+  const onNoteOnRef = useRef(onNoteOn)
+  const onNoteOffRef = useRef(onNoteOff)
+  useEffect(() => {
+    onNoteOnRef.current = onNoteOn
+    onNoteOffRef.current = onNoteOff
+  }, [onNoteOn, onNoteOff])
 
   // Suscribe un input MIDI al handler de mensajes.
   const attachInput = useCallback((input) => {
@@ -44,6 +58,7 @@ export function useMidi() {
           next.add(note)
           return next
         })
+        onNoteOnRef.current?.(note, velocity)
       } else if (command === NOTE_OFF || (command === NOTE_ON && rawVelocity === 0)) {
         releaseNote(note)
         setActiveNotes((prev) => {
@@ -52,6 +67,7 @@ export function useMidi() {
           next.delete(note)
           return next
         })
+        onNoteOffRef.current?.(note)
       }
       // Ignoramos el resto (control change, pitch bend, etc.) por ahora.
     }
