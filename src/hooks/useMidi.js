@@ -49,6 +49,10 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
   // Mantenemos referencias para no recrear listeners en cada render.
   const midiAccessRef = useRef(null)
   const inputsRef = useRef(new Map()) // id -> MIDIInput
+  // Ref sincrónica para evitar dobles llamadas a start() por un doble click
+  // rápido (el state React no se actualiza hasta el próximo render, así que
+  // un guard sobre `isReady` no protege la misma tick).
+  const isStartingRef = useRef(false)
 
   // Refs a los callbacks externos para que el handler siempre vea la versión
   // más reciente sin necesidad de re-suscribirse a onmidimessage.
@@ -126,16 +130,24 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
       const active = effectiveSelectedInputIdRef.current
       if (active && event.target.id !== active) return
 
+      // Mensajes cortos (running status sin byte de status, program change
+      // 0xC0, channel pressure 0xD0) llegan con < 3 bytes; descartarlos aquí
+      // evita que la desestructuración lea `undefined` y descarta la nota
+      // por una rama que no toca.
+      if (event.data.length < 3) return
+
       const [statusByte, note, rawVelocity] = event.data
       const command = statusByte & 0xf0
+      if (command !== NOTE_ON && command !== NOTE_OFF) return
       const velocity = rawVelocity / 127
 
       if (command === NOTE_ON && rawVelocity > 0) {
         playNote(note, velocity)
-      } else if (command === NOTE_OFF || (command === NOTE_ON && rawVelocity === 0)) {
+      } else {
+        // NOTE_OFF o NOTE_ON con velocity 0 (algunos dispositivos lo usan
+        // como note off alternativo).
         stopNote(note)
       }
-      // Ignoramos el resto (control change, pitch bend, etc.) por ahora.
     }
 
     inputsRef.current.set(input.id, input)
@@ -199,10 +211,13 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
    */
   const start = useCallback(async () => {
     if (isReady) return
+    if (isStartingRef.current) return
+    isStartingRef.current = true
     setError(null)
 
     if (typeof navigator.requestMIDIAccess !== 'function') {
       setError('Tu navegador no soporta Web MIDI API. Usa Chrome o Edge.')
+      isStartingRef.current = false
       return
     }
 
@@ -214,6 +229,8 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
       setIsReady(true)
     } catch (err) {
       setError(`No se pudo acceder a MIDI: ${err?.message ?? err}`)
+    } finally {
+      isStartingRef.current = false
     }
   }, [isReady, refreshInputs])
 

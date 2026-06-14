@@ -31,17 +31,13 @@ function readPersistedInstrument() {
 export function useInstrument() {
   const [instrumentId, setInstrumentId] = useState(readPersistedInstrument)
 
-  // Aplica la selección al módulo de audio.
+  // Cada vez que cambia el instrumento: sincroniza audio y persiste.
   useEffect(() => {
     setSynthInstrument(instrumentId)
-  }, [instrumentId])
-
-  // Persiste en localStorage cada vez que cambia.
-  useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, instrumentId)
     } catch {
-      // Ignorar errores de localStorage.
+      // localStorage no disponible (modo privado, SSR, etc.) → ignorar.
     }
   }, [instrumentId])
 
