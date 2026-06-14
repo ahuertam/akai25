@@ -1,5 +1,21 @@
 name: Deploy to GitHub Pages
 
+# ---------------------------------------------------------------------------
+# IMPORTANTE: este workflow construye el sitio y hace push a la rama
+# `gh-pages`, pero NO configura la fuente de GitHub Pages. Eso hay que
+# hacerlo a mano en la UI del repo la primera vez:
+#
+#   Settings > Pages > Source > "Deploy from a branch"
+#                              > Branch: `gh-pages` > `/ (root)` > Save
+#
+# Si Pages sigue configurado para servir desde otra rama (p.ej. `main`),
+# el workflow terminará "success" pero el sitio en
+# https://ahuertam.github.io/akai25/ seguirá mostrando la versión
+# incorrecta (404 en el bundle compilado, 200 en /src/main.jsx).
+#
+# Tras cambiar la fuente, el siguiente push ya publica desde `gh-pages`.
+# ---------------------------------------------------------------------------
+
 # Disparamos en cada push a main y también manualmente desde la UI.
 on:
   push:

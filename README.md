@@ -41,6 +41,24 @@ npm run dev
 
 Abre `http://localhost:5173/`, conecta el Akai por USB, pulsa **Conectar** y acepta el permiso MIDI cuando el navegador lo solicite.
 
+## Deploy (GitHub Pages)
+
+El repo publica automáticamente en `https://ahuertam.github.io/akai25/` desde la rama `gh-pages` mediante el workflow `.github/workflows/deploy.yml`. Se dispara en cada push a `main`.
+
+> ⚠️ **Requisito manual la primera vez:** el workflow sube el build a `gh-pages`, pero **no puede cambiar la fuente de GitHub Pages**. Hay que configurarla a mano en la UI del repo (o por CLI) **una sola vez**:
+>
+> **UI:** `Settings > Pages > Source > "Deploy from a branch" > Branch: gh-pages > / (root) > Save`
+>
+> **CLI** (con `gh` autenticado y scope `repo`):
+> ```bash
+> gh api -X PUT /repos/ahuertam/akai25/pages \
+>   -f source[branch]=gh-pages \
+>   -f source[path]=/ \
+>   -f build_type=legacy
+> ```
+>
+> Si no se hace, el workflow termina "success" pero el sitio sigue mostrando la versión anterior (404 en el bundle compilado, 200 en `/src/main.jsx`) porque Pages estará sirviendo desde otra rama (p.ej. `main`).
+
 ## Scripts disponibles
 
 | Comando           | Descripción                                          |
