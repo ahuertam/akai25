@@ -30,6 +30,19 @@ const INSTRUMENT_PRESETS = {
       envelope: { attack: 0.005, decay: 0.5, sustain: 0.15, release: 0.9 },
     }),
   },
+  piano2: {
+    label: 'Piano 2',
+    description: 'Piano acústico real (samples)',
+    create: () => new Tone.Sampler({
+      urls: {
+        A1: 'A1.mp3', A2: 'A2.mp3', A3: 'A3.mp3',
+        A4: 'A4.mp3', A5: 'A5.mp3', A6: 'A6.mp3',
+        C2: 'C2.mp3', C3: 'C3.mp3', C4: 'C4.mp3', C5: 'C5.mp3',
+      },
+      baseUrl: 'https://tonejs.github.io/audio/salamander/',
+      release: 1,
+    }),
+  },
   bass: {
     label: 'Bass',
     description: 'Monofónico con filtro (mono = una nota a la vez)',
