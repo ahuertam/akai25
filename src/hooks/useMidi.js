@@ -4,6 +4,7 @@ import { startAudio, triggerNote, releaseNote, releaseAll } from '../audio/synth
 // Status bytes del protocolo MIDI que nos interesan.
 const NOTE_ON = 0x90
 const NOTE_OFF = 0x80
+const CONTROL_CHANGE = 0xB0
 
 const DEVICE_STORAGE_KEY = 'akai25.midiDevice'
 
@@ -38,6 +39,9 @@ function readPersistedDevice() {
  *   - selectedInputId: id del input que está procesando eventos (o null).
  *   - selectInput(id): fija el input activo (para cuando hay 2+ dispositivos).
  *   - inputCount: número de inputs MIDI conectados.
+ *   - lastCC:    { controller, value, channel } del último Control Change
+ *                recibido, o null. Útil para depurar botones de octava y
+ *                otros controles que no son notas.
  */
 export function useMidi({ onNoteOn, onNoteOff } = {}) {
   const [isReady, setIsReady] = useState(false)
@@ -45,6 +49,9 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
   const [selectedInputId, setSelectedInputId] = useState(readPersistedDevice)
   const [activeNotes, setActiveNotes] = useState(new Set())
   const [error, setError] = useState(null)
+  // Último Control Change recibido. Lo exponemos para que la UI muestre
+  // un indicador breve (los botones de octava del Akai envían CC, no notas).
+  const [lastCC, setLastCC] = useState(null)
 
   // Mantenemos referencias para no recrear listeners en cada render.
   const midiAccessRef = useRef(null)
@@ -138,6 +145,15 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
 
       const [statusByte, note, rawVelocity] = event.data
       const command = statusByte & 0xf0
+      const channel = (statusByte & 0x0f) + 1
+
+      // Capturamos Control Change para mostrarlos en la UI (botones de
+      // octava del Akai, transport, etc.). No afectan al sintetizador.
+      if (command === CONTROL_CHANGE) {
+        setLastCC({ controller: note, value: rawVelocity, channel })
+        return
+      }
+
       if (command !== NOTE_ON && command !== NOTE_OFF) return
       const velocity = rawVelocity / 127
 
@@ -251,6 +267,7 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
     selectedInputId: effectiveSelectedInputId,
     selectInput,
     inputCount: inputs.length,
+    lastCC,
     start,
     // API pública para disparar notas "virtuales" (p.ej. clic en el
     // teclado virtual). Pasa por el mismo camino que un mensaje MIDI

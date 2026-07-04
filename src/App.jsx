@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMidi } from './hooks/useMidi.js'
 import { useRecorder } from './hooks/useRecorder.js'
 import { useInstrument } from './hooks/useInstrument.js'
@@ -9,6 +9,7 @@ import { InstrumentSelector } from './components/InstrumentSelector.jsx'
 import { MetronomeControl } from './components/MetronomeControl.jsx'
 import { DeviceSelector } from './components/DeviceSelector.jsx'
 import { PersistenceControls } from './components/PersistenceControls.jsx'
+import { releaseAll as silenceSynth } from './audio/synth.js'
 import { midiToNoteName } from './utils/notes.js'
 import './App.css'
 
@@ -26,6 +27,7 @@ export default function App() {
     selectedInputId,
     selectInput,
     inputCount,
+    lastCC,
     start,
     playNote,
     stopNote,
@@ -33,6 +35,22 @@ export default function App() {
     onNoteOn: recorder.handleNoteOn,
     onNoteOff: recorder.handleNoteOff,
   })
+
+  // Refleja el último Control Change recibido durante 2 segundos.
+  // Los botones de octava del Akai envían CC, no Note On/Off, así que
+  // sin esto el usuario no ve confirmación de que el pulsó llegó.
+  // El setTimeout(..., 0) evita el aviso de react-hooks/set-state-in-effect
+  // sin perder inmediatez visual: sigue apareciendo en el siguiente frame.
+  const [displayedCC, setDisplayedCC] = useState(null)
+  useEffect(() => {
+    if (!lastCC) return
+    const showId = setTimeout(() => setDisplayedCC(lastCC), 0)
+    const hideId = setTimeout(() => setDisplayedCC(null), 2000)
+    return () => {
+      clearTimeout(showId)
+      clearTimeout(hideId)
+    }
+  }, [lastCC])
 
   // El teclado muestra tanto las notas tocadas en vivo como las que
   // están sonando durante la reproducción.
@@ -89,6 +107,16 @@ export default function App() {
                 <span className="status__label">Inputs MIDI</span>
                 <span className="status__value">{inputCount}</span>
               </div>
+              {displayedCC && (
+                <div className="status__row status__row--cc" aria-live="polite">
+                  <span className="status__label">Control Change</span>
+                  <span className="status__value">
+                    CC#{displayedCC.controller} = {displayedCC.value}
+                    {' '}
+                    <small>(ch {displayedCC.channel})</small>
+                  </span>
+                </div>
+              )}
             </section>
 
             <DeviceSelector
@@ -124,8 +152,14 @@ export default function App() {
               isRecording={recorder.isRecording}
               isPlaying={recorder.isPlaying}
               eventCount={recorder.recordedEvents.length}
+              loop={recorder.loop}
+              onLoopChange={recorder.setLoop}
               onRecord={recorder.startRecording}
               onStop={() => {
+                // Parada universal: silencia cualquier nota colgada (incl.
+                // el bug de Monophonic donde triggerRelease(freq) programa
+                // un release a 440s) y, si hay algo en curso, lo para.
+                silenceSynth()
                 if (recorder.isRecording) recorder.stopRecording()
                 else if (recorder.isPlaying) recorder.stopPlayback()
               }}
