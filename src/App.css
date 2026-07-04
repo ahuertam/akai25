@@ -122,6 +122,24 @@
   word-break: break-word;
 }
 
+/* Indicator de Control Change reciente (botones de octava del Akai, etc.) */
+.status__row--cc {
+  animation: cc-flash 0.4s ease-out;
+}
+.status__row--cc .status__value {
+  color: var(--accent, #7ee3b3);
+  font-weight: 600;
+}
+
+@keyframes cc-flash {
+  from {
+    background: color-mix(in srgb, var(--accent, #7ee3b3) 18%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}
+
 .status--error {
   border-color: var(--error);
   background: var(--error-bg);
@@ -359,6 +377,57 @@
 @keyframes pulse-rec {
   0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.5); }
   50%      { box-shadow: 0 0 0 6px rgba(255, 107, 107, 0); }
+}
+
+/* Checkbox de bucle — visualmente consistente con los botones de transporte */
+.transport__loop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border, #2a2f3a);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--sans);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.transport__loop:hover:not([aria-disabled="true"]) {
+  color: var(--text);
+  border-color: var(--accent, #7ee3b3);
+}
+.transport__loop:has(input:disabled) {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.transport__loop.is-active {
+  background: color-mix(in srgb, var(--accent, #7ee3b3) 14%, transparent);
+  color: var(--accent, #7ee3b3);
+  border-color: var(--accent, #7ee3b3);
+}
+.transport__loop input[type="checkbox"] {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  display: grid;
+  place-items: center;
+  cursor: inherit;
+  margin: 0;
+}
+.transport__loop input[type="checkbox"]:checked::after {
+  content: "✓";
+  font-size: 11px;
+  line-height: 1;
+  color: currentColor;
+}
+.transport__loop-icon {
+  font-size: 16px;
+  line-height: 1;
 }
 
 /* Status a la derecha de los botones */

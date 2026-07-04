@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import * as Tone from 'tone'
-import { midiToFrequency, getSynth } from '../audio/synth.js'
+import { midiToFrequency, getSynth, releaseAll } from '../audio/synth.js'
 
 const STORAGE_KEY = 'akai25.recording.v1'
 
@@ -44,6 +44,8 @@ function loadPersistedEvents() {
  *   - stopPlayback():      detiene la reproducción.
  *   - clearRecording():    borra la grabación actual (y la persistida).
  *   - loadRecording(events): reemplaza la grabación actual con un array.
+ *   - loop:                true si la reproducción debe repetirse en bucle.
+ *   - setLoop(bool):       activa/desactiva el bucle.
  *   - handleNoteOn(midi, velocity): suscriptor para Note On del hook MIDI.
  *   - handleNoteOff(midi):          suscriptor para Note Off del hook MIDI.
  */
@@ -53,12 +55,20 @@ export function useRecorder() {
   const [isRecording, setIsRecording] = useState(false)
   const [isPlaying, setIsPlaying] = useState(false)
   const [playbackActiveNotes, setPlaybackActiveNotes] = useState(new Set())
+  const [loop, setLoop] = useState(false)
 
   // --- Estado mutable accesible desde callbacks sin re-suscribirse ---
   // Usamos refs para que handleNoteOn/Off siempre vean el estado actual
   // aunque React aún no haya confirmado el render del nuevo state.
   const isRecordingRef = useRef(false)
   const isPlayingRef = useRef(false)
+  const loopRef = useRef(false) // espejo síncrono de `loop` para callbacks
+  // Ref espejo de recordedEvents. Permite que schedulePlaybackEvents y
+  // onPlaybackEnded lean SIEMPRE los eventos más recientes sin tener que
+  // incluirlos en sus deps (que los haría recrear en cada render y haría
+  // imposible memorizar playRecording con deps vacías).
+  const recordedEventsRef = useRef(recordedEvents)
+  recordedEventsRef.current = recordedEvents
   const recordingStartRef = useRef(0)        // Tone.now() al empezar a grabar
   const activeRecordingNotesRef = useRef(new Map()) // midi -> { startTime, velocity }
   // Ids de eventos agendados por el recorder en Transport/Draw. Los
@@ -84,6 +94,7 @@ export function useRecorder() {
 
   // Mantenemos isPlayingRef sincronizado con el state (para callbacks).
   useEffect(() => { isPlayingRef.current = isPlaying }, [isPlaying])
+  useEffect(() => { loopRef.current = loop }, [loop])
 
   // --- Handlers de Note On / Off (suscriptores del hook MIDI) ---
 
@@ -157,41 +168,43 @@ export function useRecorder() {
     stopPlaybackInternal()
   }, [])
 
-  const playRecording = useCallback(() => {
-    if (isPlayingRef.current) return
-    if (recordedEvents.length === 0) return
-
+  /**
+   * Programa los eventos grabados en Transport (audio) y Tone.Draw (visual).
+   * Devuelve el tiempo final (maxEnd) para que el caller agende el callback
+   * de fin. Se reutiliza desde playRecording y desde el callback de bucle,
+   * donde el transport ya está corriendo y no debe pararse.
+   *
+   * Lee `recordedEvents` desde el ref para tener SIEMPRE la versión más
+   * reciente (p.ej. si el usuario graba otra cosa mientras suena un bucle).
+   *
+   * NOTA: NO llama a transport.start() — quien lo invoca decide si
+   * necesita arrancar el reloj (primera vez) o solo rebobinar (bucle).
+   */
+  const schedulePlaybackEvents = useCallback(() => {
     const transport = Tone.getTransport()
     const draw = Tone.getDraw()
-
-    // Limpiamos cualquier schedule previo del recorder (no del metrónomo).
-    transport.stop()
-    for (const id of scheduledTransportIdsRef.current) transport.clear(id)
-    for (const id of scheduledDrawIdsRef.current) draw.clear(id)
-    scheduledTransportIdsRef.current = []
-    scheduledDrawIdsRef.current = []
-    transport.position = 0
-
-    // Programamos audio y visual de cada evento en el Transport.
+    const events = recordedEventsRef.current
     let maxEnd = 0
-    for (const event of recordedEvents) {
+    for (const event of events) {
       const freq = midiToFrequency(event.note)
       const endTime = event.startTime + event.duration
       if (endTime > maxEnd) maxEnd = endTime
 
-      // Audio: el callback recibe el tiempo exacto del AudioContext.
       scheduledTransportIdsRef.current.push(
         transport.schedule((time) => {
           const currentSynth = getSynth()
-          if (currentSynth) {
+          if (!currentSynth) return
+          if (typeof currentSynth.triggerAttackRelease === 'function') {
             currentSynth.triggerAttackRelease(freq, event.duration, time, event.velocity)
+          } else {
+            // PolySynth/Sampler sin método combinado: gestionamos
+            // attack y release por separado en el AudioContext time.
+            currentSynth.triggerAttack(freq, time, event.velocity)
+            currentSynth.triggerRelease(freq, time + event.duration)
           }
         }, event.startTime),
       )
 
-      // Visual: Tone.Draw se sincroniza con requestAnimationFrame, así que
-      // las teclas se encienden/apagan alineadas con el audio que sale
-      // por los altavoces (compensa el retardo del AudioContext).
       scheduledDrawIdsRef.current.push(
         draw.schedule(() => {
           setPlaybackActiveNotes((prev) => {
@@ -201,7 +214,6 @@ export function useRecorder() {
           })
         }, event.startTime),
       )
-
       scheduledDrawIdsRef.current.push(
         draw.schedule(() => {
           setPlaybackActiveNotes((prev) => {
@@ -213,22 +225,82 @@ export function useRecorder() {
         }, endTime),
       )
     }
+    return maxEnd
+  }, [])
+
+  /**
+   * Callback disparado por el transport al final de una iteración. Si el
+   * bucle está activo, rebobina el transport a t=0 y reprograma los
+   * eventos SIN pararlo (así no hay glitch audible entre vueltas). Si
+   * no hay bucle, marca el fin del playback y limpia estado.
+   */
+  const onPlaybackEnded = useCallback(() => {
+    const events = recordedEventsRef.current
+    if (loopRef.current && events.length > 0) {
+      // Limpiamos sólo los ids de ESTA iteración. El transport sigue
+      // corriendo desde maxEnd; rebobinamos a t=0 con .seconds para
+      // que los eventos re-agendados disparen en orden.
+      for (const id of scheduledTransportIdsRef.current) {
+        Tone.getTransport().clear(id)
+      }
+      for (const id of scheduledDrawIdsRef.current) {
+        Tone.getDraw().clear(id)
+      }
+      scheduledTransportIdsRef.current = []
+      scheduledDrawIdsRef.current = []
+      setPlaybackActiveNotes(new Set())
+      Tone.getTransport().seconds = 0
+      const maxEnd = schedulePlaybackEvents()
+      // Reagendamos el fin de la siguiente iteración.
+      scheduledTransportIdsRef.current.push(
+        Tone.getTransport().schedule(onPlaybackEnded, maxEnd + 0.1),
+      )
+      return
+    }
+    isPlayingRef.current = false
+    setIsPlaying(false)
+    setPlaybackActiveNotes(new Set())
+  }, [schedulePlaybackEvents])
+
+  const playRecording = useCallback(() => {
+    if (isPlayingRef.current) return
+    if (recordedEventsRef.current.length === 0) return
+
+    const transport = Tone.getTransport()
+
+    // Limpiamos cualquier schedule previo del recorder (no del metrónomo).
+    transport.stop()
+    for (const id of scheduledTransportIdsRef.current) transport.clear(id)
+    for (const id of scheduledDrawIdsRef.current) Tone.getDraw().clear(id)
+    scheduledTransportIdsRef.current = []
+    scheduledDrawIdsRef.current = []
+
+    // Reset de posición robusto. transport.position = 0 no siempre rebobina
+    // limpiamente tras un playback previo (el tick counter puede quedarse
+    // pegado en ticks > 0). transport.seconds = 0 es directo y siempre
+    // funciona, devolviendo el reloj a t=0 antes del start() siguiente.
+    transport.seconds = 0
+
+    // Defensivo: silenciamos cualquier nota que pudiera haber quedado
+    // sonando de un playback anterior (p.ej. envelope abierto en Sampler).
+    // Sin esto, la segunda reproducción puede superponerse a una nota
+    // colgada y sonar "rara".
+    releaseAll()
+    setPlaybackActiveNotes(new Set())
+
+    const maxEnd = schedulePlaybackEvents()
 
     isPlayingRef.current = true
     setIsPlaying(true)
     transport.start()
 
-    // Agendamos el fin de la reproducción en el Transport (no en wall-clock
-    // con setTimeout) para que se mantenga sincronizado si el BPM cambia
-    // mid-playback (p.ej. al activar el metrónomo).
+    // Fin de la reproducción (o siguiente iteración si bucle). Lo
+    // agendamos en el Transport (no en wall-clock con setTimeout) para
+    // que se mantenga sincronizado si el BPM cambia mid-playback.
     scheduledTransportIdsRef.current.push(
-      transport.schedule(() => {
-        isPlayingRef.current = false
-        setIsPlaying(false)
-        setPlaybackActiveNotes(new Set())
-      }, maxEnd + 0.1),
+      transport.schedule(onPlaybackEnded, maxEnd + 0.1),
     )
-  }, [recordedEvents])
+  }, [schedulePlaybackEvents, onPlaybackEnded])
 
   // Limpieza al desmontar: cancelamos sólo los eventos del recorder.
   useEffect(() => {
@@ -272,6 +344,8 @@ export function useRecorder() {
     isRecording,
     isPlaying,
     playbackActiveNotes,
+    loop,
+    setLoop,
     startRecording,
     stopRecording,
     playRecording,
