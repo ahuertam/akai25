@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+// Versión importada desde package.json vía alias de Vite (ver vite.config.js)
+// — evita drift entre el subtítulo del header y el versionado del repo.
+import pkg from '~version'
 import { useMidi } from './hooks/useMidi.js'
 import { useRecorder } from './hooks/useRecorder.js'
 import { useInstrument } from './hooks/useInstrument.js'
@@ -132,6 +135,7 @@ export default function App() {
     start,
     playNote,
     stopNote,
+    skipDefaultAudioRef,
   } = useMidi({
     onNoteOn: routeNoteOn,
     onNoteOff: routeNoteOff,
@@ -139,6 +143,14 @@ export default function App() {
     onModWheel: handleModWheel,
     onSustain: handleSustain,
   })
+
+  // En modo creative NO disparamos el triggerNote del singleton desde
+  // useMidi — el router ya manda la nota a creative.recordEvent que
+  // dispara el audio de la pista activa. Sin este skip, el Akai suena
+  // con dos instrumentos a la vez (singleton + pista activa).
+  useEffect(() => {
+    skipDefaultAudioRef.current = mode === 'creative'
+  }, [mode, skipDefaultAudioRef])
 
   // Refleja el último Control Change recibido durante 2 segundos.
   // Los botones de octava del Akai envían CC, no Note On/Off, así que
@@ -176,7 +188,7 @@ export default function App() {
       <header className={`app__header app__header--with-chip${mode === 'creative' ? ' is-compact' : ''}`}>
         <div className="app__title">
           <h1>AKAI25 Web DAW</h1>
-          <p className="app__subtitle">Hito 4 · Pulizado, Persistencia y Extras</p>
+          <p className="app__subtitle">v{pkg.version} · Modo creative multipista</p>
         </div>
         {isReady && (
           <button

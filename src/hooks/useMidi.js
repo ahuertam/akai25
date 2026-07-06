@@ -97,6 +97,9 @@ export function useMidi({ onNoteOn, onNoteOff, onPitchBend, onModWheel, onSustai
   const onPitchBendRef = useRef(onPitchBend)
   const onModWheelRef = useRef(onModWheel)
   const onSustainRef = useRef(onSustain)
+  // dejamos el singleton sonando encima el usuario oye dos instrumentos
+  // a la vez (el del modo normal + el de la pista activa).
+  const skipDefaultAudioRef = useRef(false)
   useEffect(() => {
     onNoteOnRef.current = onNoteOn
     onNoteOffRef.current = onNoteOff
@@ -141,7 +144,9 @@ export function useMidi({ onNoteOn, onNoteOff, onPitchBend, onModWheel, onSustai
   // garantiza que el click se graba igual que una nota real y que el visual
   // se actualiza de forma consistente.
   const playNote = useCallback((midi, velocity = 0.8) => {
-    triggerNote(midi, velocity)
+    if (!skipDefaultAudioRef.current) {
+      triggerNote(midi, velocity)
+    }
     setActiveNotes((prev) => {
       if (prev.has(midi)) return prev
       const next = new Set(prev)
@@ -163,7 +168,9 @@ export function useMidi({ onNoteOn, onNoteOff, onPitchBend, onModWheel, onSustai
       sustainedNotesRef.current.add(midi)
       return
     }
-    releaseNote(midi)
+    if (!skipDefaultAudioRef.current) {
+      releaseNote(midi)
+    }
     setActiveNotes((prev) => {
       if (!prev.has(midi)) return prev
       const next = new Set(prev)
@@ -366,5 +373,9 @@ export function useMidi({ onNoteOn, onNoteOff, onPitchBend, onModWheel, onSustai
     // real, así que el visual y la grabación se actualizan igual.
     playNote,
     stopNote,
+    // Ref que App.jsx muta según el modo. Si está true, playNote/stopNote
+    // NO disparan el triggerNote del singleton — el consumidor se
+    // encarga del audio (p.ej. modo creative → pista activa).
+    skipDefaultAudioRef,
   }
 }
