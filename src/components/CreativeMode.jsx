@@ -73,22 +73,19 @@ export function CreativeMode({ onExit, activeNotes, midiHandlerRef }) {
       />
 
       <div className="creative-tracks" aria-label="Pistas del modo creative">
-        <div
-          className="creative-playhead"
-          style={{ left: `${playheadLeft}%` }}
-          aria-hidden="true"
-        />
         {creative.tracks.map((track) => (
           <CreativeTrack
             key={track.id}
             track={track}
             isActive={track.id === creative.activeTrackId}
             loopLength={creative.loopLength}
+            playheadLeft={playheadLeft}
             available={creative.availableInstruments}
             onSelectInstrument={creative.setInstrument}
             onToggleOverwrite={creative.toggleOverwrite}
             onToggleMute={creative.toggleMute}
             onClear={creative.clearTrack}
+            onDeleteEvent={creative.deleteEvent}
             onActivate={() => creative.setActiveTrack(track.id)}
           />
         ))}

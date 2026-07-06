@@ -23,11 +23,13 @@ export function CreativeTrack({
   track,
   isActive,
   loopLength,
+  playheadLeft,
   available,
   onSelectInstrument,
   onToggleOverwrite,
   onToggleMute,
   onClear,
+  onDeleteEvent,
   onActivate,
 }) {
   // Helper para detener el bubble en los controles: el handler del
@@ -98,6 +100,18 @@ export function CreativeTrack({
       </div>
 
       <div className="creative-track__lane">
+        {/* ponytail: el playhead VA DENTRO del lane (no como hijo de
+            .creative-tracks). Antes se posicionaba contra el contenedor
+            completo, pero el lane NO ocupa todo el ancho — el head de
+            360px + gap de 12px está a la izquierda. El playhead al 50%
+            quedaba en el centro del contenedor y los rectángulos al 50%
+            en el centro del lane: no coincidían. Cada lane ahora tiene
+            su propia línea, todas sincronizadas al mismo playheadLeft. */}
+        <div
+          className="creative-playhead"
+          style={{ left: `${playheadLeft}%` }}
+          aria-hidden="true"
+        />
         {track.events.map((evt, i) => {
           // Posición horizontal como porcentaje del loop.
           const left = (evt.localTime / loopLength) * 100
@@ -112,7 +126,15 @@ export function CreativeTrack({
                 width: `${width}%`,
                 background: track.color,
               }}
-              title={`${midiToNoteName(evt.note)} @ ${evt.localTime.toFixed(2)}s`}
+              title={`${midiToNoteName(evt.note)} @ ${evt.localTime.toFixed(2)}s · doble-click para borrar`}
+              onDoubleClick={(e) => {
+                // stopPropagation evita que el doble-click active la pista
+                // (onActivate está en el outer div, lo capturaría por
+                // burbuja). preventDefault evita selección de texto.
+                e.stopPropagation()
+                e.preventDefault()
+                onDeleteEvent?.(track.id, i)
+              }}
             />
           )
         })}

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-// Versión importada desde package.json vía alias de Vite (ver vite.config.js)
-// — evita drift entre el subtítulo del header y el versionado del repo.
-import pkg from '~version'
+// Vite parsea .json nativamente; import relativo evita el alias que no
+// se resuelve bien en el bundle. Si subimos a otro lado la app, mover
+// también este import.
+import pkg from '../package.json'
 import { useMidi } from './hooks/useMidi.js'
 import { useRecorder } from './hooks/useRecorder.js'
 import { useInstrument } from './hooks/useInstrument.js'
