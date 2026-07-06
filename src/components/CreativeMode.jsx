@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useCreativeMode } from '../hooks/useCreativeMode.js'
 import { useMetronome } from '../hooks/useMetronome.js'
 import { Keyboard } from './Keyboard.jsx'
 import { CreativeHeader } from './CreativeHeader.jsx'
 import { CreativeTrack } from './CreativeTrack.jsx'
+import { CreativeEventEditor } from './CreativeEventEditor.jsx'
 
 /**
  * Vista completa del modo creative. Orquesta:
@@ -57,8 +58,41 @@ export function CreativeMode({ onExit, activeNotes, midiHandlerRef }) {
     [creative.playheadTime, creative.loopLength],
   )
 
+  // Lookup del evento seleccionado. Si el track fue borrado o el índice
+  // está fuera de rango, devolvemos null y el editor se cierra.
+  const selectedEventData = useMemo(() => {
+    if (!creative.selectedEvent) return null
+    const { trackId, eventIndex } = creative.selectedEvent
+    const track = creative.tracks.find((t) => t.id === trackId)
+    const event = track?.events[eventIndex]
+    if (!event) return null
+    return { track, event, trackId, eventIndex }
+  }, [creative.selectedEvent, creative.tracks])
+
+  // Ref al contenedor principal: click fuera del editor y de cualquier
+  // rectángulo cierra el editor (deselecciona). El handler lee creative
+  // desde un ref para que el effect no se re-suscriba cada render
+  // (creative es un objeto nuevo en cada render del hook).
+  const containerRef = useRef(null)
+  const creativeRef = useRef(creative)
+  useEffect(() => {
+    creativeRef.current = creative
+  })
+  useEffect(() => {
+    if (!creative.selectedEvent) return
+    const onPointerDown = (e) => {
+      // Si el click está dentro del editor, no hacemos nada (el editor
+      // tiene su propio onClick stopPropagation, pero por si acaso).
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        creativeRef.current.setSelectedEvent(null)
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [creative.selectedEvent])
+
   return (
-    <div className="creative">
+    <div className="creative" ref={containerRef}>
       <CreativeHeader
         loopLength={creative.loopLength}
         isPlaying={creative.isPlaying}
@@ -68,6 +102,7 @@ export function CreativeMode({ onExit, activeNotes, midiHandlerRef }) {
         onBack={onExit}
         onExport={creative.exportSong}
         isExporting={creative.isExporting}
+        exportError={creative.exportError}
         hasEvents={creative.tracks.some((t) => t.events.length > 0)}
         bpm={metronome.bpm}
       />
@@ -80,12 +115,18 @@ export function CreativeMode({ onExit, activeNotes, midiHandlerRef }) {
             isActive={track.id === creative.activeTrackId}
             loopLength={creative.loopLength}
             playheadLeft={playheadLeft}
+            selectedIndex={
+              creative.selectedEvent?.trackId === track.id
+                ? creative.selectedEvent.eventIndex
+                : null
+            }
             available={creative.availableInstruments}
             onSelectInstrument={creative.setInstrument}
             onToggleOverwrite={creative.toggleOverwrite}
             onToggleMute={creative.toggleMute}
             onClear={creative.clearTrack}
             onDeleteEvent={creative.deleteEvent}
+            onSelectEvent={creative.selectEvent}
             onActivate={() => creative.setActiveTrack(track.id)}
           />
         ))}
@@ -96,6 +137,32 @@ export function CreativeMode({ onExit, activeNotes, midiHandlerRef }) {
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
       />
+
+      {selectedEventData && (
+        <CreativeEventEditor
+          // Key fuerza re-mount al cambiar de evento — el draft se
+          // reinicializa desde el prop sin necesidad de useEffect de sync.
+          key={`${selectedEventData.trackId}-${selectedEventData.eventIndex}`}
+          event={selectedEventData.event}
+          loopLength={creative.loopLength}
+          trackColor={selectedEventData.track.color}
+          onChange={(updates) =>
+            creative.updateEvent(
+              selectedEventData.trackId,
+              selectedEventData.eventIndex,
+              updates,
+            )
+          }
+          onDelete={() => {
+            creative.deleteEvent(
+              selectedEventData.trackId,
+              selectedEventData.eventIndex,
+            )
+            creative.setSelectedEvent(null)
+          }}
+          onClose={() => creative.setSelectedEvent(null)}
+        />
+      )}
 
       <p className="creative-hint">
         Modo creative · 8 pistas × 2 compases · Toca una pista para activarla, elige instrumento y pulsa <strong>Play</strong> para empezar a grabar el loop.

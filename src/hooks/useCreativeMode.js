@@ -329,6 +329,48 @@ export function useCreativeMode({ bpm = 100 } = {}) {
     )
   }, [])
 
+  // Edición inline de un evento: panel con inputs de tiempo, duración y
+  // velocity. selectedEvent es { trackId, eventIndex } o null. Cuando
+  // está seleccionado, CreativeTrack pinta el rectángulo con outline y
+  // CreativeMode muestra el panel de edición.
+  const [selectedEvent, setSelectedEvent] = useState(null)
+  const selectEvent = useCallback((trackId, eventIndex) => {
+    setSelectedEvent({ trackId, eventIndex })
+  }, [])
+
+  // Edita un evento in-place (panel de edición con inputs). El evento
+  // mantiene la misma posición en el array para no romper el key={i}
+  // de los rectángulos — los eventos de después mantienen su índice.
+  // Clampeamos localTime a [0, loopLength] y duration a [0.01, loopLength]
+  // para que un input vacío o negativo no rompa el Part.
+  const updateEvent = useCallback(
+    (trackId, eventIndex, updates) => {
+      setTracks((prev) =>
+        prev.map((t) => {
+          if (t.id !== trackId) return t
+          return {
+            ...t,
+            events: t.events.map((e, i) => {
+              if (i !== eventIndex) return e
+              const next = { ...e, ...updates }
+              if (typeof next.localTime === 'number') {
+                next.localTime = Math.max(0, Math.min(loopLength, next.localTime))
+              }
+              if (typeof next.duration === 'number') {
+                next.duration = Math.max(0.01, Math.min(loopLength, next.duration))
+              }
+              if (typeof next.velocity === 'number') {
+                next.velocity = Math.max(0, Math.min(1, next.velocity))
+              }
+              return next
+            }),
+          }
+        })
+      )
+    },
+    [loopLength],
+  )
+
   // -------------------------------------------------------------------
   // Export: render offline del loop a WAV + descarga. Usa Tone.Offline
   // (un AudioContext efímero que renderiza offline) porque el contexto
@@ -338,33 +380,43 @@ export function useCreativeMode({ bpm = 100 } = {}) {
   // que re-instanciar el bus entero dentro del callback.
   // -------------------------------------------------------------------
   const [isExporting, setIsExporting] = useState(false)
+  const [exportError, setExportError] = useState(null)
   const exportSong = useCallback(async () => {
     if (isExporting) return
     const hasEvents = tracksRef.current.some((t) => t.events.length > 0)
     if (!hasEvents) return
 
     setIsExporting(true)
+    setExportError(null)
     try {
-      // Leemos desde el ref para no depender del state de React (puede
-      // haber un setTracks en vuelo que aún no se ha confirmado).
       const currentTracks = tracksRef.current
 
-      // Pequeño margen al final para que el release de las últimas notas
-      // no se corte (los envelopes tardan en decaer).
-      const renderDuration = loopLength + 0.5
+      // Tail = loopLength + reverb decay (2.5s) para capturar la cola
+      // completa del reverb. Sin esto, el último 2.5s de cola se corta.
+      const renderDuration = loopLength + 2.5
 
-      const buffer = await Tone.Offline(({ transport }) => {
+      const buffer = await Tone.Offline(async ({ transport }) => {
         transport.bpm.value = bpm
+
+        // Bus master efímero: filter → reverb → destination. Mismos
+        // settings que synth.js (lowpass 12000Hz Q=5, reverb decay 2.5s
+        // wet 0.25) para que el export suene IGUAL al live.
+        const filter = new Tone.Filter({ type: 'lowpass', frequency: 12000, Q: 5 })
+        const reverb = new Tone.Reverb({ decay: 2.5, wet: 0.25 })
+        filter.connect(reverb)
+        reverb.toDestination()
+        // generate() es async — la IR del reverb tiene que estar lista
+        // antes de que empiece el render, si no los primeros eventos
+        // salen sin reverb.
+        await reverb.generate()
 
         currentTracks.forEach((track) => {
           if (track.events.length === 0 || track.muted) return
           const synth = createInstrumentInstance(track.instrumentId)
-          // Conectamos al destino del OfflineContext (no al masterFilter
-          // del contexto live, que no existe aquí).
-          synth.toDestination()
+          // Cada pista entra por el filter (no directo a destination).
+          synth.connect(filter)
 
           track.events.forEach((event) => {
-            // Para NoiseSynth el primer arg es duración (no nota).
             if (synth instanceof Tone.NoiseSynth) {
               synth.triggerAttackRelease(event.duration, event.localTime, event.velocity)
             } else {
@@ -389,8 +441,10 @@ export function useCreativeMode({ bpm = 100 } = {}) {
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch (err) {
-      // No rompemos la app si falla el render offline; avisamos por consola.
+      // No rompemos la app si falla el render offline; el error se ve
+      // en el header del creative (debajo del botón).
       console.error('Export falló:', err)
+      setExportError(err?.message ?? 'Error desconocido')
     } finally {
       setIsExporting(false)
     }
@@ -410,6 +464,10 @@ export function useCreativeMode({ bpm = 100 } = {}) {
     clearTrack,
     clearAll,
     deleteEvent,
+    updateEvent,
+    selectedEvent,
+    setSelectedEvent,
+    selectEvent,
     start,
     stop,
     recordEvent,
@@ -417,5 +475,6 @@ export function useCreativeMode({ bpm = 100 } = {}) {
     availableInstruments: AVAILABLE_INSTRUMENTS,
     exportSong,
     isExporting,
+    exportError,
   }
 }
