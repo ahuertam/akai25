@@ -183,8 +183,12 @@ export function useCreativeMode({ bpm = 100 } = {}) {
         // StateTimeline.setStateAtTime ("Value must be within [0, Infinity],
         // got: -1.4e-13") porque al pasar undefined a toTicks(), la
         // conversión termina dando un valor ligeramente negativo por
-        // floating-point. Pasamos el tiempo explícito del Transport.
-        part.stop(transportRef.current?.seconds ?? 0)
+        // floating-point. Pasamos el tiempo explícito del Transport y
+        // clampeamos por si transport.seconds viene ligeramente < 0
+        // (puede pasar justo después de transport.seconds = 0 si la
+        // conversión a ticks redondea por debajo).
+        const transportTime = transportRef.current?.seconds ?? 0
+        part.stop(Math.max(0, transportTime))
       }
     })
   }, [tracks, isPlaying, loopLength])
@@ -311,6 +315,20 @@ export function useCreativeMode({ bpm = 100 } = {}) {
     setTracks((prev) => prev.map((t) => ({ ...t, events: [] })))
   }, [])
 
+  // Borra un único evento del track (doble-click sobre el rectángulo en
+  // la UI). Filtramos por índice; los rectángulos usan el índice como
+  // key de React, así que este índice es estable hasta el próximo render
+  // — el doble-click lo captura antes de que React re-renderice.
+  const deleteEvent = useCallback((trackId, eventIndex) => {
+    setTracks((prev) =>
+      prev.map((t) =>
+        t.id === trackId
+          ? { ...t, events: t.events.filter((_, i) => i !== eventIndex) }
+          : t
+      )
+    )
+  }, [])
+
   // -------------------------------------------------------------------
   // Export: render offline del loop a WAV + descarga. Usa Tone.Offline
   // (un AudioContext efímero que renderiza offline) porque el contexto
@@ -391,6 +409,7 @@ export function useCreativeMode({ bpm = 100 } = {}) {
     toggleMute,
     clearTrack,
     clearAll,
+    deleteEvent,
     start,
     stop,
     recordEvent,

@@ -1407,6 +1407,7 @@
   opacity: 0.85;
   box-shadow: 0 0 6px color-mix(in srgb, var(--track-color, var(--accent)) 40%, transparent);
   transition: transform 0.1s ease, opacity 0.1s ease;
+  cursor: pointer;
 }
 
 .creative-track__note:hover {
