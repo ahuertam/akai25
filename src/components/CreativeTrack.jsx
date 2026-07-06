@@ -24,12 +24,14 @@ export function CreativeTrack({
   isActive,
   loopLength,
   playheadLeft,
+  selectedIndex,
   available,
   onSelectInstrument,
   onToggleOverwrite,
   onToggleMute,
   onClear,
   onDeleteEvent,
+  onSelectEvent,
   onActivate,
 }) {
   // Helper para detener el bubble en los controles: el handler del
@@ -120,13 +122,21 @@ export function CreativeTrack({
           return (
             <div
               key={i}
-              className="creative-track__note"
+              className={`creative-track__note${selectedIndex === i ? ' creative-track__note--selected' : ''}`}
               style={{
                 left: `${left}%`,
                 width: `${width}%`,
                 background: track.color,
               }}
-              title={`${midiToNoteName(evt.note)} @ ${evt.localTime.toFixed(2)}s · doble-click para borrar`}
+              title={`${midiToNoteName(evt.note)} @ ${evt.localTime.toFixed(2)}s · click para editar, doble-click para borrar`}
+              onClick={(e) => {
+                // Single-click selecciona la nota para editarla. Si la
+                // nota ya estaba seleccionada, NO propagamos al track
+                // (que lo activaría). stopPropagation evita que el track
+                // se active cada vez que el usuario hace click en una nota.
+                e.stopPropagation()
+                onSelectEvent?.(track.id, i)
+              }}
               onDoubleClick={(e) => {
                 // stopPropagation evita que el doble-click active la pista
                 // (onActivate está en el outer div, lo capturaría por

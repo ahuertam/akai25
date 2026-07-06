@@ -16,6 +16,7 @@ export function CreativeHeader({
   onBack,
   onExport,
   isExporting,
+  exportError,
   hasEvents,
   bpm,
 }) {
@@ -82,6 +83,11 @@ export function CreativeHeader({
           🗑 Clear all
         </button>
       </div>
+      {exportError && (
+        <p className="creative-header__error" role="alert">
+          ⚠ {exportError}
+        </p>
+      )}
     </div>
   )
 }
