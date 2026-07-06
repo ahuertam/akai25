@@ -15,8 +15,8 @@ import { getKeyboardLayout, midiToNoteName } from '../utils/notes.js'
  */
 export function Keyboard({
   activeNotes,
-  startMidi = 36,
-  endMidi = 72,
+  startMidi = 35,
+  endMidi = 75,
   onKeyDown,
   onKeyUp,
 }) {
@@ -74,6 +74,22 @@ function Key({ midi, variant, isActive, style, onPointerDown, onPointerUp }) {
   const noteName = midiToNoteName(midi)
   const className = `key key--${variant}${isActive ? ' key--active' : ''}`
 
+  // El note-off lo instalamos en window para que la nota se corte al
+  // SOLTAR el botón en cualquier sitio, no sólo sobre la tecla. Esto
+  // permite arrastrar el cursor hacia el pitch-bend slider (u otra
+  // superficie) sin que la nota se silencie a medio bend. El note-on
+  // sí se queda en el onPointerDown de la tecla.
+  const handlePointerDown = () => {
+    onPointerDown?.(midi)
+    const release = () => {
+      window.removeEventListener('pointerup', release)
+      window.removeEventListener('pointercancel', release)
+      onPointerUp?.(midi)
+    }
+    window.addEventListener('pointerup', release)
+    window.addEventListener('pointercancel', release)
+  }
+
   return (
     <div
       className={className}
@@ -81,9 +97,7 @@ function Key({ midi, variant, isActive, style, onPointerDown, onPointerUp }) {
       data-midi={midi}
       data-note={noteName}
       data-active={isActive || undefined}
-      onPointerDown={onPointerDown}
-      onPointerUp={onPointerUp}
-      onPointerLeave={onPointerUp}
+      onPointerDown={handlePointerDown}
     >
       <span className="key__label" aria-hidden="true">{noteName}</span>
     </div>

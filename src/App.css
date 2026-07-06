@@ -754,3 +754,692 @@
     justify-content: space-between;
   }
 }
+
+/* Slider de pitch bend — visualmente alineado con los demás controles,
+ * con track, marca central y mango que se puede arrastrar o manejar con
+ * teclado (←/→ ±2%, Shift acelera, Home/End van a los extremos). */
+.pitch-bend {
+  position: relative;
+  width: 200px;
+  height: 44px;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
+.pitch-bend:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+.pitch-bend__title {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+
+.pitch-bend__track {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.pitch-bend__center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 18px;
+  background: var(--text-dim);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.pitch-bend__handle {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 28px;
+  background: var(--accent);
+  border: 1px solid var(--accent-bright);
+  border-radius: 4px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  box-shadow: 0 0 10px rgba(192, 132, 252, 0.35);
+}
+
+.pitch-bend__label {
+  position: absolute;
+  top: calc(50% + 16px);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  pointer-events: none;
+}
+
+.pitch-bend__label--left { left: 0; }
+.pitch-bend__label--center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+.pitch-bend__label--right { right: 0; }
+
+/* Checkbox "sin retorno" para el pitch bend. Se alinea verticalmente
+ * con el slider y se ilumina cuando está activo. */
+.pitch-bend__sticky {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease, border-color 0.15s ease,
+              background 0.15s ease;
+}
+.pitch-bend__sticky:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.pitch-bend__sticky.is-on {
+  color: var(--accent-bright);
+  border-color: var(--accent-bright);
+  background: rgba(170, 59, 255, 0.12);
+}
+.pitch-bend__sticky input {
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+.pitch-bend__sticky:focus-within {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+/* Pedal sustain — toggle visual con icono SVG. Cuando está pisado
+ * (is-on) se ilumina en color accent para que se vea claro qué está
+ * sosteniendo notas. */
+.sustain {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 12px;
+  background: var(--bg-input);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  transition: color 0.15s ease, border-color 0.15s ease,
+              background 0.15s ease, box-shadow 0.15s ease;
+}
+.sustain:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.sustain:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+.sustain.is-on {
+  color: var(--accent-bright);
+  border-color: var(--accent-bright);
+  background: rgba(170, 59, 255, 0.12);
+  box-shadow: 0 0 12px rgba(192, 132, 252, 0.35);
+}
+.sustain__icon {
+  display: block;
+}
+
+/* ============================================================
+   MODO CREATIVE — header con chip del dispositivo, layout
+   multipista, regla de tiempos, playhead, toggles y notas.
+   Reusa los tokens del tema (--accent, --bg-elevated, etc.)
+   ============================================================ */
+
+/* Header pasa de estar centrado a flex con título a la izquierda y
+   chip del dispositivo a la derecha (entrada al modo creative). */
+.app__header--with-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 960px;
+  gap: 16px;
+  text-align: left;
+}
+
+.app__header--with-chip.is-compact {
+  margin-bottom: -16px;
+}
+
+.app__header--with-chip .app__title h1 {
+  font-size: 28px;
+  margin-bottom: 2px;
+}
+
+.app__title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Chip del dispositivo — botón que muestra el nombre del MIDI device
+   y sirve de entrada al modo creative (toggle desde el mismo punto). */
+.device-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  min-width: 200px;
+}
+
+.device-chip:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  background: var(--bg-input);
+}
+
+.device-chip:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+.device-chip.is-active {
+  border-color: var(--accent-bright);
+  background: rgba(170, 59, 255, 0.12);
+  color: var(--accent-bright);
+}
+
+.device-chip__icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.device-chip__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.device-chip__label {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.device-chip.is-active .device-chip__label {
+  color: var(--accent-bright);
+}
+
+.device-chip__name {
+  font-family: var(--mono);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.device-chip__arrow {
+  font-size: 18px;
+  color: var(--text-dim);
+}
+
+.device-chip.is-active .device-chip__arrow {
+  color: var(--accent-bright);
+}
+
+/* Modo creative ocupa todo el ancho disponible. */
+.app__main--creative {
+  max-width: 1100px;
+  width: 100%;
+  gap: 16px;
+}
+
+.creative {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+/* Cabecera interna: Volver + regla + transport */
+.creative-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.creative-header__center {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.creative-header__rule {
+  position: relative;
+  height: 18px;
+  background: var(--bg-input);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.creative-header__beat {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--border);
+  display: flex;
+  align-items: flex-end;
+  padding: 0 2px 2px;
+}
+
+.creative-header__beat--bar {
+  border-left-color: var(--accent);
+  background: rgba(170, 59, 255, 0.08);
+}
+
+.creative-header__beat-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.creative-header__meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.creative-header__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.creative-header__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform 0.1s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.creative-header__button:hover {
+  transform: translateY(-1px);
+}
+
+.creative-header__button:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+.creative-header__button--play {
+  border-color: #6ee7ff;
+  color: #6ee7ff;
+  min-width: 92px;
+  justify-content: center;
+}
+
+.creative-header__button--play:hover {
+  background: rgba(110, 231, 255, 0.15);
+}
+
+.creative-header__button--play.is-active {
+  background: rgba(110, 231, 255, 0.2);
+  border-color: #6ee7ff;
+  color: #ffffff;
+}
+
+.creative-header__button--clear {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.creative-header__button--clear:hover {
+  background: rgba(255, 107, 107, 0.15);
+}
+
+.creative-header__button--export {
+  border-color: #a9e34b;
+  color: #a9e34b;
+}
+
+.creative-header__button--export:hover:not(:disabled) {
+  background: rgba(169, 227, 75, 0.15);
+}
+
+.creative-header__button--export:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.creative-header__button--export.is-loading {
+  border-color: #ffd43b;
+  color: #ffd43b;
+  cursor: progress;
+}
+
+/* Botón Volver — esquina superior izquierda del creative */
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.back-button:hover {
+  transform: translateX(-2px);
+  border-color: var(--accent);
+  color: var(--accent-bright);
+}
+
+.back-button:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+/* Contenedor de las 8 pistas. Es relative para que el playhead
+   (también absolute) se posicione contra él. */
+.creative-tracks {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+/* Playhead — línea vertical púrpura que recorre el loop. */
+.creative-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, transparent, var(--accent-bright) 12%, var(--accent) 88%, transparent);
+  box-shadow: 0 0 8px rgba(192, 132, 252, 0.6);
+  pointer-events: none;
+  z-index: 5;
+  /* ponytail: SIN transition. El rAF actualiza left ~60 veces/s; una
+     transition de 40ms hace que cada frame cancele la animación
+     anterior, dejando el playhead "persiguiendo" el target con lag
+     visible. 60fps ya es suficientemente suave sin suavizado. */
+}
+
+/* Fila de pista. --track-color se inyecta inline. */
+.creative-track {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+  position: relative;
+}
+
+.creative-track::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--track-color, var(--accent));
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+}
+
+.creative-track:hover {
+  border-color: var(--accent);
+}
+
+.creative-track:hover::before {
+  opacity: 1;
+}
+
+.creative-track:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+.creative-track--active {
+  border-color: var(--accent-bright);
+  background: rgba(170, 59, 255, 0.08);
+}
+
+.creative-track--active::before {
+  opacity: 1;
+  width: 4px;
+}
+
+.creative-track--muted {
+  opacity: 0.5;
+}
+
+.creative-track--muted .creative-track__lane {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--bg-input),
+    var(--bg-input) 4px,
+    rgba(0, 0, 0, 0.15) 4px,
+    rgba(0, 0, 0, 0.15) 8px
+  );
+}
+
+.creative-track__head {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.creative-track__num {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--track-color, var(--accent));
+  background: rgba(255, 255, 255, 0.04);
+  padding: 4px 8px;
+  border-radius: 4px;
+  min-width: 28px;
+  text-align: center;
+}
+
+.creative-track__head .control--select {
+  width: 100%;
+}
+
+.creative-track__head .control__label {
+  display: none;
+}
+
+.creative-track__head .control__select {
+  min-width: 0;
+  width: 100%;
+  padding: 6px 28px 6px 10px;
+  font-size: 12px;
+}
+
+.creative-track__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.creative-track__toggle:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.creative-track__toggle.is-on {
+  color: var(--accent-bright);
+  border-color: var(--accent-bright);
+  background: rgba(170, 59, 255, 0.12);
+}
+
+.creative-track__toggle--mute.is-on {
+  color: #ff8a8a;
+  border-color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.12);
+}
+
+.creative-track__toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.creative-track__clear {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.creative-track__clear:hover {
+  color: var(--error);
+  border-color: var(--error);
+  background: var(--error-bg);
+}
+
+.creative-track__lane {
+  position: relative;
+  height: 32px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.creative-track__note {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 3px;
+  background: var(--track-color, var(--accent));
+  opacity: 0.85;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--track-color, var(--accent)) 40%, transparent);
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+
+.creative-track__note:hover {
+  opacity: 1;
+  transform: scaleY(1.1);
+}
+
+.creative-hint {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  margin: 4px 0 0;
+}
+
+@media (max-width: 720px) {
+  .app__header--with-chip {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  .device-chip {
+    justify-content: center;
+    min-width: 0;
+  }
+  .creative-header {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .creative-track {
+    grid-template-columns: 1fr;
+  }
+  .creative-track__head {
+    grid-template-columns: auto 1fr auto auto auto;
+  }
+}
