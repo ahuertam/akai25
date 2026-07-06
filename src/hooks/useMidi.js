@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { startAudio, triggerNote, releaseNote, releaseAll } from '../audio/synth.js'
+import {
+  startAudio,
+  triggerNote,
+  releaseNote,
+  releaseAll,
+  setSustain,
+  setModWheel,
+} from '../audio/synth.js'
 
 // Status bytes del protocolo MIDI que nos interesan.
 const NOTE_ON = 0x90
 const NOTE_OFF = 0x80
 const CONTROL_CHANGE = 0xB0
+const PITCH_BEND = 0xE0
 
 const DEVICE_STORAGE_KEY = 'akai25.midiDevice'
 
@@ -21,8 +29,16 @@ function readPersistedDevice() {
  * Hook que gestiona la conexión MIDI y la traduce a llamadas al sintetizador.
  *
  * Argumentos:
- *   - onNoteOn:  callback opcional (midi, velocity) llamado en cada Note On.
- *   - onNoteOff: callback opcional (midi) llamado en cada Note Off.
+ *   - onNoteOn:    callback opcional (midi, velocity) llamado en cada Note On.
+ *   - onNoteOff:   callback opcional (midi) llamado en cada Note Off.
+ *   - onPitchBend: callback opcional (normalized -1..+1) llamado en cada
+ *                  mensaje de pitch wheel (status 0xE0). El valor 0 = centro,
+ *                  -1 = bend al mínimo, +1 = bend al máximo. La rueda del
+ *                  Akai es spring-loaded y vuelve sola al centro.
+ *   - onModWheel:  callback opcional (value 0..1) en cada CC#1 (mod wheel).
+ *                  Sticky (no auto-retorno).
+ *   - onSustain:   callback opcional (boolean) en cada CC#64. on = pisado,
+ *                  off = suelto. (CC ≥ 64 → on, < 64 → off, estándar MIDI.)
  *
  * Devuelve:
  *   - isReady:   true cuando el usuario hizo clic en "Conectar".
@@ -43,7 +59,7 @@ function readPersistedDevice() {
  *                recibido, o null. Útil para depurar botones de octava y
  *                otros controles que no son notas.
  */
-export function useMidi({ onNoteOn, onNoteOff } = {}) {
+export function useMidi({ onNoteOn, onNoteOff, onPitchBend, onModWheel, onSustain } = {}) {
   const [isReady, setIsReady] = useState(false)
   const [inputs, setInputs] = useState([]) // [{ id, name }]
   const [selectedInputId, setSelectedInputId] = useState(readPersistedDevice)
@@ -52,6 +68,13 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
   // Último Control Change recibido. Lo exponemos para que la UI muestre
   // un indicador breve (los botones de octava del Akai envían CC, no notas).
   const [lastCC, setLastCC] = useState(null)
+  // Último pitch bend recibido (normalized -1..+1). La UI lo usa para
+  // reflejar el movimiento de la rueda del Akai en el slider en pantalla.
+  const [lastPitchBend, setLastPitchBend] = useState(0)
+  // Última mod wheel recibida (0..1). Sticky (sin auto-retorno).
+  const [lastModWheel, setLastModWheel] = useState(0)
+  // Estado del sustain (CC#64). true = pisado.
+  const [sustainOn, setSustainOn] = useState(false)
 
   // Mantenemos referencias para no recrear listeners en cada render.
   const midiAccessRef = useRef(null)
@@ -60,15 +83,27 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
   // rápido (el state React no se actualiza hasta el próximo render, así que
   // un guard sobre `isReady` no protege la misma tick).
   const isStartingRef = useRef(false)
+  // Ref espejo del estado de sustain para que stopNote() lo vea
+  // sincrónicamente sin tener que añadirlo a sus deps.
+  const sustainOnRef = useRef(false)
+  // Notas retenidas por el pedal sustain. Cuando el pedal se desapisa
+  // liberamos sus visuales (el audio ya lo libera setSustain en synth.js).
+  const sustainedNotesRef = useRef(new Set())
 
   // Refs a los callbacks externos para que el handler siempre vea la versión
   // más reciente sin necesidad de re-suscribirse a onmidimessage.
   const onNoteOnRef = useRef(onNoteOn)
   const onNoteOffRef = useRef(onNoteOff)
+  const onPitchBendRef = useRef(onPitchBend)
+  const onModWheelRef = useRef(onModWheel)
+  const onSustainRef = useRef(onSustain)
   useEffect(() => {
     onNoteOnRef.current = onNoteOn
     onNoteOffRef.current = onNoteOff
-  }, [onNoteOn, onNoteOff])
+    onPitchBendRef.current = onPitchBend
+    onModWheelRef.current = onModWheel
+    onSustainRef.current = onSustain
+  }, [onNoteOn, onNoteOff, onPitchBend, onModWheel, onSustain])
 
   // El id "efectivo" es el seleccionado por el usuario, o el primero
   // disponible si la selección desapareció. Lo derivamos en render (no
@@ -116,7 +151,18 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
     onNoteOnRef.current?.(midi, velocity)
   }, [])
 
+  // Si la nota está retenida por sustain (sostenida), NO la soltamos en
+  // audio ni la quitamos del visual — se queda sonando y encendida hasta
+  // que el pedal se desapise. onNoteOffRef sigue llamándose siempre para
+  // que el recorder capture la release física (sustain no afecta a la
+  // duración grabada — el sampler graba "lo que tocaste", no "lo que
+  // se oyó").
   const stopNote = useCallback((midi) => {
+    onNoteOffRef.current?.(midi)
+    if (sustainOnRef.current) {
+      sustainedNotesRef.current.add(midi)
+      return
+    }
     releaseNote(midi)
     setActiveNotes((prev) => {
       if (!prev.has(midi)) return prev
@@ -124,8 +170,10 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
       next.delete(midi)
       return next
     })
-    onNoteOffRef.current?.(midi)
   }, [])
+
+  // Espejo síncrono de sustainOn para que stopNote lo vea sin rerender.
+  useEffect(() => { sustainOnRef.current = sustainOn }, [sustainOn])
 
   // Suscribe un input MIDI al handler de mensajes.
   const attachInput = useCallback((input) => {
@@ -147,10 +195,51 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
       const command = statusByte & 0xf0
       const channel = (statusByte & 0x0f) + 1
 
-      // Capturamos Control Change para mostrarlos en la UI (botones de
-      // octava del Akai, transport, etc.). No afectan al sintetizador.
+      // Capturamos Control Change. CC#1 (mod wheel) y CC#64 (sustain) son los
+      // que la app interpreta; el resto (botones de octava del Akai,
+      // transport, etc.) se muestran como indicador genérico sin afectar
+      // al sintetizador.
       if (command === CONTROL_CHANGE) {
+        if (note === 1) {
+          // Mod wheel: 0..127 → 0..1. La rueda del Akai no tiene muelle,
+          // se queda donde la dejas hasta que la muevas otra vez.
+          const value = rawVelocity / 127
+          setLastModWheel(value)
+          setModWheel(value)
+          onModWheelRef.current?.(value)
+          return
+        }
+        if (note === 64) {
+          // Sustain: ≥64 = pisado, <64 = suelto (umbral estándar MIDI).
+          const on = rawVelocity >= 64
+          if (!on && sustainedNotesRef.current.size > 0) {
+            // Acabamos de desapisarlo: limpiamos visuales de las notas
+            // que estaban retenidas (el audio ya lo libera setSustain).
+            const sustained = Array.from(sustainedNotesRef.current)
+            sustainedNotesRef.current.clear()
+            setActiveNotes((prev) => {
+              const next = new Set(prev)
+              for (const m of sustained) next.delete(m)
+              return next
+            })
+          }
+          setSustainOn(on)
+          setSustain(on)
+          onSustainRef.current?.(on)
+          return
+        }
         setLastCC({ controller: note, value: rawVelocity, channel })
+        return
+      }
+
+      // Pitch Bend: status 0xE0 con 2 data bytes (LSB, MSB = 14 bits,
+      // centro = 8192). Normalizamos a -1..+1 para que el caller pueda
+      // escalarlo al rango que quiera (en este proyecto ±200 cents).
+      if (command === PITCH_BEND) {
+        const value = (rawVelocity << 7) | note
+        const normalized = (value - 8192) / 8192
+        setLastPitchBend(normalized)
+        onPitchBendRef.current?.(normalized)
         return
       }
 
@@ -268,6 +357,9 @@ export function useMidi({ onNoteOn, onNoteOff } = {}) {
     selectInput,
     inputCount: inputs.length,
     lastCC,
+    lastPitchBend,
+    lastModWheel,
+    sustainOn,
     start,
     // API pública para disparar notas "virtuales" (p.ej. clic en el
     // teclado virtual). Pasa por el mismo camino que un mensaje MIDI

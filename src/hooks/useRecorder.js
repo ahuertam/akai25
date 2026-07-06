@@ -156,7 +156,7 @@ export function useRecorder() {
     // Cancelamos SOLO los eventos del recorder. Usar cancel(0) borraría
     // también el scheduleRepeat del metrónomo (que comparte el Transport).
     for (const id of scheduledTransportIdsRef.current) transport.clear(id)
-    for (const id of scheduledDrawIdsRef.current) draw.clear(id)
+    for (const id of scheduledDrawIdsRef.current) draw.cancel(id)
     scheduledTransportIdsRef.current = []
     scheduledDrawIdsRef.current = []
     isPlayingRef.current = false
@@ -244,7 +244,7 @@ export function useRecorder() {
         Tone.getTransport().clear(id)
       }
       for (const id of scheduledDrawIdsRef.current) {
-        Tone.getDraw().clear(id)
+        Tone.getDraw().cancel(id)
       }
       scheduledTransportIdsRef.current = []
       scheduledDrawIdsRef.current = []
@@ -271,7 +271,7 @@ export function useRecorder() {
     // Limpiamos cualquier schedule previo del recorder (no del metrónomo).
     transport.stop()
     for (const id of scheduledTransportIdsRef.current) transport.clear(id)
-    for (const id of scheduledDrawIdsRef.current) Tone.getDraw().clear(id)
+    for (const id of scheduledDrawIdsRef.current) Tone.getDraw().cancel(id)
     scheduledTransportIdsRef.current = []
     scheduledDrawIdsRef.current = []
 
@@ -309,7 +309,7 @@ export function useRecorder() {
       const draw = Tone.getDraw()
       transport.stop()
       for (const id of scheduledTransportIdsRef.current) transport.clear(id)
-      for (const id of scheduledDrawIdsRef.current) draw.clear(id)
+      for (const id of scheduledDrawIdsRef.current) draw.cancel(id)
     }
   }, [])
 
