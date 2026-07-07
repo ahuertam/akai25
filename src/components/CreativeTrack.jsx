@@ -1,5 +1,5 @@
 import { InstrumentSelector } from './InstrumentSelector.jsx'
-import { midiToNoteName } from '../utils/notes.js'
+import { CreativeNote } from './CreativeNote.jsx'
 
 /**
  * Fila de una pista del modo creative. Visualización horizontal:
@@ -14,7 +14,8 @@ import { midiToNoteName } from '../utils/notes.js'
  * Props:
  *  - track: { id, instrumentId, events, overwrite, muted, color }
  *  - isActive: bool, si es la pista a la que van las notas nuevas
- *  - loopLength: en segundos, ancho del timeline
+ *  - loopLength (cycleLength): en segundos, ancho del lane (loopEnd - loopStart)
+ *  - loopStart: en segundos, offset absoluto del inicio del rango visible
  *  - available: lista de instrumentos disponibles
  *  - handlers: setInstrument, toggleOverwrite, toggleMute, clearTrack,
  *              setActiveTrack, recordEvent
@@ -23,6 +24,7 @@ export function CreativeTrack({
   track,
   isActive,
   loopLength,
+  loopStart,
   playheadLeft,
   selectedIndex,
   available,
@@ -31,6 +33,7 @@ export function CreativeTrack({
   onToggleMute,
   onClear,
   onDeleteEvent,
+  onUpdateEvent,
   onSelectEvent,
   onActivate,
 }) {
@@ -115,36 +118,19 @@ export function CreativeTrack({
           aria-hidden="true"
         />
         {track.events.map((evt, i) => {
-          // Posición horizontal como porcentaje del loop.
-          const left = (evt.localTime / loopLength) * 100
-          // Ancho mínimo para que se vean rectángulos cortos.
-          const width = Math.max((evt.duration / loopLength) * 100, 1.5)
+          // CreativeNote encapsula drag + click + doble-click. El padre
+          // solo le pasa callbacks que delegan al hook.
           return (
-            <div
+            <CreativeNote
               key={i}
-              className={`creative-track__note${selectedIndex === i ? ' creative-track__note--selected' : ''}`}
-              style={{
-                left: `${left}%`,
-                width: `${width}%`,
-                background: track.color,
-              }}
-              title={`${midiToNoteName(evt.note)} @ ${evt.localTime.toFixed(2)}s · click para editar, doble-click para borrar`}
-              onClick={(e) => {
-                // Single-click selecciona la nota para editarla. Si la
-                // nota ya estaba seleccionada, NO propagamos al track
-                // (que lo activaría). stopPropagation evita que el track
-                // se active cada vez que el usuario hace click en una nota.
-                e.stopPropagation()
-                onSelectEvent?.(track.id, i)
-              }}
-              onDoubleClick={(e) => {
-                // stopPropagation evita que el doble-click active la pista
-                // (onActivate está en el outer div, lo capturaría por
-                // burbuja). preventDefault evita selección de texto.
-                e.stopPropagation()
-                e.preventDefault()
-                onDeleteEvent?.(track.id, i)
-              }}
+              event={evt}
+              loopLength={loopLength}
+              loopStart={loopStart}
+              isSelected={selectedIndex === i}
+              color={track.color}
+              onSelect={() => onSelectEvent?.(track.id, i)}
+              onDelete={() => onDeleteEvent?.(track.id, i)}
+              onUpdate={(updates) => onUpdateEvent?.(track.id, i, updates)}
             />
           )
         })}

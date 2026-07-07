@@ -54,8 +54,8 @@ export function CreativeMode({ onExit, activeNotes, midiHandlerRef }) {
   }, [creative, midiHandlerRef])
 
   const playheadLeft = useMemo(
-    () => (creative.playheadTime / creative.loopLength) * 100,
-    [creative.playheadTime, creative.loopLength],
+    () => (creative.playheadTime / creative.cycleLength) * 100,
+    [creative.playheadTime, creative.cycleLength],
   )
 
   // Lookup del evento seleccionado. Si el track fue borrado o el índice
@@ -91,11 +91,37 @@ export function CreativeMode({ onExit, activeNotes, midiHandlerRef }) {
     return () => document.removeEventListener('pointerdown', onPointerDown)
   }, [creative.selectedEvent])
 
+  // Atajos de teclado para la nota seleccionada: Backspace/Delete borra,
+  // Escape deselecciona. NO actuar si el foco está en un input (el
+  // usuario podría estar escribiendo en el editor de tiempo/duración).
+  useEffect(() => {
+    if (!creative.selectedEvent) return
+    const onKey = (e) => {
+      const tag = e.target?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      const sel = creativeRef.current.selectedEvent
+      if (!sel) return
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        creativeRef.current.setSelectedEvent(null)
+      } else if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault()
+        creativeRef.current.deleteEvent(sel.trackId, sel.eventIndex)
+        creativeRef.current.setSelectedEvent(null)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [creative.selectedEvent])
+
   return (
     <div className="creative" ref={containerRef}>
       <CreativeHeader
-        loopLength={creative.loopLength}
+        loopStart={creative.loopStart}
+        loopEnd={creative.loopEnd}
+        cycleLength={creative.cycleLength}
         isPlaying={creative.isPlaying}
+        playheadLeft={playheadLeft}
         onPlay={creative.start}
         onStop={creative.stop}
         onClearAll={creative.clearAll}
@@ -104,6 +130,8 @@ export function CreativeMode({ onExit, activeNotes, midiHandlerRef }) {
         isExporting={creative.isExporting}
         exportError={creative.exportError}
         hasEvents={creative.tracks.some((t) => t.events.length > 0)}
+        onLoopStartChange={creative.setLoopStart}
+        onLoopEndChange={creative.setLoopEnd}
         bpm={metronome.bpm}
       />
 
@@ -113,7 +141,8 @@ export function CreativeMode({ onExit, activeNotes, midiHandlerRef }) {
             key={track.id}
             track={track}
             isActive={track.id === creative.activeTrackId}
-            loopLength={creative.loopLength}
+            loopLength={creative.cycleLength}
+            loopStart={creative.loopStart}
             playheadLeft={playheadLeft}
             selectedIndex={
               creative.selectedEvent?.trackId === track.id
@@ -126,6 +155,7 @@ export function CreativeMode({ onExit, activeNotes, midiHandlerRef }) {
             onToggleMute={creative.toggleMute}
             onClear={creative.clearTrack}
             onDeleteEvent={creative.deleteEvent}
+            onUpdateEvent={creative.updateEvent}
             onSelectEvent={creative.selectEvent}
             onActivate={() => creative.setActiveTrack(track.id)}
           />
@@ -144,7 +174,7 @@ export function CreativeMode({ onExit, activeNotes, midiHandlerRef }) {
           // reinicializa desde el prop sin necesidad de useEffect de sync.
           key={`${selectedEventData.trackId}-${selectedEventData.eventIndex}`}
           event={selectedEventData.event}
-          loopLength={creative.loopLength}
+          loopLength={creative.cycleLength}
           trackColor={selectedEventData.track.color}
           onChange={(updates) =>
             creative.updateEvent(
