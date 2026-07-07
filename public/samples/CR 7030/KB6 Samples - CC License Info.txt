@@ -1,0 +1,14 @@
+KB6 Samples Archive © 1996 by Kai is licensed under CC BY-NC-ND 4.0 
+The licence is modified and clarified as follows.
+
+Any of the samples packs has a small info file in it ([www.kb6.de].txt), if there is a different licence in it, it will be valid as first instance.
+
+Attribution-NonCommercial-NoDerivatives 4.0 International
+
+It allows reusers to make music with the samples, this music can of course be commercial work and licensed or sold as of your local and international laws. There is no requirement of credits in this case.
+
+But it is not allowed to use the samples for any software adaption and distribution, like plugins for DAW, sample players, samples archives (online or offline) and so on. It is not allowed to use these samples for any work, if there is any combination of selling this or any part of the work for money. noncommercial purposes only.
+
+BY: Credit must be given to you, the creator.
+NC: Only noncommercial use of your work is permitted. Noncommercial means not primarily intended for or directed towards commercial advantage or monetary compensation.
+ND: No derivatives or adaptations of your work are permitted. 

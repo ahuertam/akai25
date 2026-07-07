@@ -16,6 +16,7 @@ import { PersistenceControls } from './components/PersistenceControls.jsx'
 import { PitchBendSlider } from './components/PitchBendSlider.jsx'
 import { SustainToggle } from './components/SustainToggle.jsx'
 import { CreativeMode } from './components/CreativeMode.jsx'
+import { SampleCredits } from './components/SampleCredits.jsx'
 import {
   releaseAll as silenceSynth,
   pitchBend as applyPitchBend,
@@ -389,6 +390,7 @@ export default function App() {
 
       <footer className="app__footer">
         <small>Conecta tu Akai o haz clic en el teclado — todo se graba y persiste igual.</small>
+        <SampleCredits />
       </footer>
     </div>
   )

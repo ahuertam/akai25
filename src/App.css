@@ -47,6 +47,67 @@
   text-align: center;
 }
 
+/* Disclosure de créditos — discreto por defecto, expande al click.
+   <details>/<summary> nativos, sin JS. */
+.sample-credits {
+  margin-top: 12px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  text-align: left;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.sample-credits > summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+.sample-credits > summary::-webkit-details-marker {
+  display: none;
+}
+.sample-credits > summary::before {
+  content: '▸ ';
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+.sample-credits[open] > summary::before {
+  content: '▾ ';
+}
+.sample-credits__body {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: left;
+}
+.sample-credits__body p {
+  margin: 0 0 8px 0;
+}
+.sample-credits__body p:last-child {
+  margin-bottom: 0;
+}
+.sample-credits__entry--muted {
+  opacity: 0.7;
+}
+.sample-credits__note {
+  font-style: italic;
+}
+.sample-credits__kits {
+  font-size: 10px;
+  opacity: 0.85;
+  word-break: break-word;
+}
+
 /* Botón principal de Conexión */
 .connect-button {
   display: flex;

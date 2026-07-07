@@ -1,0 +1,5 @@
+Syncussion Zapp
+
+The Syncussion Zapp is a drum synthesizer that you feed a trigger-signal into it and get a short sound out of it. There are 4 simple decay-envelopes, 2 VCA, a double-oscillator with frequency- and ringmodulation, a versatile noise source, a typical twin-t-circuit drumvoice, an attenuator and a multimode vcf.
+
+http://stereoping.com/selfmade_syncussion_zapp.htm
