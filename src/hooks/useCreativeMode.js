@@ -47,8 +47,6 @@ const TRACK_COLORS = [
  *    se ignoran notas nuevas hasta hacer clearTrack.
  */
 export function useCreativeMode({ bpm = 100 } = {}) {
-  const loopLength = (60 / bpm) * LOOP_BEATS
-
   // Estado reactivo. Cada cambio re-renderiza el componente creative y
   // dispara el useEffect de sincronización (Part ↔ events).
   //
@@ -69,15 +67,81 @@ export function useCreativeMode({ bpm = 100 } = {}) {
   const [activeTrackId, setActiveTrackId] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [playheadTime, setPlayheadTime] = useState(0)
+  // ponytail: el rango del loop se controla directamente en SEGUNDOS
+  // (no en negras), con loopStart (default 0) y loopEnd (default 4.8s,
+  // max 180s = 3 min). Los eventos tienen `localTime` ABSOLUTO en
+  // [0, 180s]; los que quedan fuera de [loopStart, loopEnd] simplemente
+  // no suenan (modelo DAW: clip con loop region). NO shifteamos ni
+  // clampeamos eventos al cambiar el rango — se quedan donde están.
+  const LOOP_MAX_SECONDS = 180
+  const LOOP_DEFAULT_SECONDS = (60 / 100) * LOOP_BEATS // 4.8s a 100bpm
+  const [loopStart, setLoopStartState] = useState(0)
+  const [loopEnd, setLoopEndState] = useState(LOOP_DEFAULT_SECONDS)
+  const cycleLength = loopEnd - loopStart
+
+  const setLoopStart = useCallback((newStart) => {
+    const n = Number(newStart)
+    if (!Number.isFinite(n)) return
+    const clamped = Math.max(0, Math.min(LOOP_MAX_SECONDS - 0.1, n))
+    // Asegurar loopStart < loopEnd (mínimo 0.1s de diferencia).
+    const safe = Math.min(clamped, loopEnd - 0.1)
+    setLoopStartState(safe)
+  }, [loopEnd])
+
+  const setLoopEnd = useCallback((newEnd) => {
+    const n = Number(newEnd)
+    if (!Number.isFinite(n)) return
+    const clamped = Math.max(0.1, Math.min(LOOP_MAX_SECONDS, n))
+    // Asegurar loopEnd > loopStart.
+    const safe = Math.max(clamped, loopStart + 0.1)
+    setLoopEndState(safe)
+  }, [loopStart])
 
   // Refs para estado no-reactivo (instancias de Tone, ids de scheduling).
   const partsRef = useRef(new Map())      // trackId → Tone.Part
   const drawIdRef = useRef(null)          // id de Tone.Draw para el playhead
   const loopCallbackIdRef = useRef(null)  // id de Transport.scheduleRepeat
   const transportRef = useRef(null)
+  // Refs espejo de loopStart/cycleLength para que el rAF del playhead
+  // lea los valores actuales en cada frame, no los del closure (que
+  // quedarían stale si el usuario ajusta el rango en vivo).
+  const loopStartRef = useRef(loopStart)
+  const cycleLengthRef = useRef(cycleLength)
   // Latest-ref de `tracks`: lo mantienen los useEffect de abajo, no el
   // render, para evitar el warning de react-hooks/refs.
   const tracksRef = useRef(tracks)
+
+  // -------------------------------------------------------------------
+  // Sincroniza los refs espejo de loopStart / cycleLength con los state.
+  // Se hace en useEffect (no durante render) para respetar la regla de
+  // react-hooks/refs.
+  // -------------------------------------------------------------------
+  useEffect(() => {
+    loopStartRef.current = loopStart
+  }, [loopStart])
+  useEffect(() => {
+    cycleLengthRef.current = cycleLength
+  }, [cycleLength])
+
+  // -------------------------------------------------------------------
+  // ponytail: el boot effect tiene deps `[]` (solo corre al montar), así
+  // que el Transport.loopStart/loopEnd se QUEDABA con los valores del
+  // primer render. Cuando el usuario ajustaba Inicio/Final, sólo el
+  // visual (cycleLength, Part) se actualizaba — el Transport seguía
+  // ciclando en el rango viejo. Este effect sincroniza el Transport en
+  // vivo al rango activo.
+  // -------------------------------------------------------------------
+  useEffect(() => {
+    const transport = transportRef.current
+    if (!transport) return
+    transport.loopStart = loopStart
+    transport.loopEnd = loopEnd
+    // Si el playhead está parado fuera del nuevo rango (poco probable
+    // salvo que cambies loopEnd con el botón parado y notes ya
+    // existentes), lo dejamos donde está — el usuario decide. Si está
+    // corriendo y se "pasa" del nuevo loopEnd, Tone.js lo wrappea
+    // automáticamente a loopStart en el siguiente tick.
+  }, [loopStart, loopEnd])
 
   // -------------------------------------------------------------------
   // Boot: crea los tracks de audio, configura el Transport y registra
@@ -88,9 +152,11 @@ export function useCreativeMode({ bpm = 100 } = {}) {
     transportRef.current = transport
     transport.bpm.value = bpm
     transport.loop = true
-    transport.loopStart = 0
-    transport.loopEnd = loopLength
-    transport.seconds = 0
+    // El Transport cicla en [loopStart, loopEnd]. cycleLength es la
+    // duración real de un loop; loopStart es el offset absoluto.
+    transport.loopStart = loopStart
+    transport.loopEnd = loopEnd
+    transport.seconds = loopStart
 
     // Crea los 8 tracks de audio (instancias Tone.js) con sus instrumentos.
     tracks.forEach((track) => {
@@ -104,7 +170,7 @@ export function useCreativeMode({ bpm = 100 } = {}) {
       setTracks((prev) =>
         prev.map((t) => (t.overwrite ? { ...t, events: [] } : t)),
       )
-    }, loopLength)
+    }, cycleLength)
     loopCallbackIdRef.current = loopId
 
     return () => {
@@ -150,9 +216,13 @@ export function useCreativeMode({ bpm = 100 } = {}) {
           playTrackNoteScheduled(value.trackId, value.note, value.duration, time, value.velocity)
         }, [])
         part.loop = true
-        part.loopEnd = loopLength
         partsRef.current.set(track.id, part)
       }
+      // El Part cicla en [loopStart, loopEnd] (el mismo rango que el
+      // Transport). Eventos con localTime fuera de este rango NO suenan
+      // porque Tone.Part los ignora al estar fuera de loopStart/loopEnd.
+      part.loopStart = loopStart
+      part.loopEnd = loopEnd
       part.clear()
       // Convertimos los events del state a la estructura [time, value]
       // que espera Tone.Part. `localTime` está en segundos dentro del
@@ -191,7 +261,7 @@ export function useCreativeMode({ bpm = 100 } = {}) {
         part.stop(Math.max(0, transportTime))
       }
     })
-  }, [tracks, isPlaying, loopLength])
+  }, [tracks, isPlaying, cycleLength, loopStart, loopEnd])
 
   // -------------------------------------------------------------------
   // Transport: arrancar / parar el playhead y los Parts.
@@ -199,7 +269,11 @@ export function useCreativeMode({ bpm = 100 } = {}) {
   const start = useCallback(() => {
     const transport = transportRef.current
     if (!transport) return
-    transport.seconds = 0
+    // Si loopStart > 0, transport.seconds = 0 cae ANTES del rango del
+    // loop — el Transport puede ignorarlo o "snappear" a loopStart.
+    // Mejor fijamos a loopStart para que la primera vuelta empiece
+    // exactamente en el inicio del rango visible.
+    transport.seconds = loopStartRef.current
     transport.start('+0.05', 0)
     partsRef.current.forEach((part) => part.start('+0.05', 0))
     // ponytail: Tone.Draw.schedule es ONE-SHOT (mira Draw.js: encola en
@@ -209,19 +283,24 @@ export function useCreativeMode({ bpm = 100 } = {}) {
     // con el AudioContext porque leemos transport.seconds, no time.
     if (drawIdRef.current === null) {
       const tick = () => {
-        // Clamp defensivo: cuando transport.seconds == loopLength el
-        // módulo puede devolver -1.4e-13 por coma flotante (lo vimos
-        // con part.stop). Forzamos el rango para que el render CSS no
-        // reciba un porcentaje negativo o >100%.
-        const raw = transport.seconds % loopLength
-        const t = raw < 0 ? 0 : raw > loopLength ? loopLength : raw
+        // transport.seconds vive en [loopStart, loopEnd]. El tick lee
+        // los valores actuales de los refs (no del closure) para que
+        // ajustar el rango en vivo no deje el rAF con valores stale.
+        const cs = cycleLengthRef.current
+        const ls = loopStartRef.current
+        const offset = transport.seconds - ls
+        const t = offset < 0 ? 0 : offset > cs ? cs : offset
         setPlayheadTime(t)
         drawIdRef.current = requestAnimationFrame(tick)
       }
       drawIdRef.current = requestAnimationFrame(tick)
     }
     setIsPlaying(true)
-  }, [loopLength])
+    // Deps vacías: el tick lee cycleLength/loopStart de los refs, que
+    // se actualizan en cada render. Si dependiéramos de esos valores
+    // aquí, el rAF quedaría atado a los viejos cuando el usuario cambia
+    // el rango en vivo.
+  }, [])
 
   const stop = useCallback(() => {
     const transport = transportRef.current
@@ -246,8 +325,13 @@ export function useCreativeMode({ bpm = 100 } = {}) {
   // -------------------------------------------------------------------
   const recordEvent = useCallback(({ note, velocity = 0.8, duration = 0.3 } = {}) => {
     if (note === undefined || note === null) return
+    // localTime es ABSOLUTO (en segundos desde 0, dentro del rango
+    // [0, LOOP_MAX_SECONDS]). El Transport cicla en [loopStart, loopEnd]
+    // y transport.seconds está en ese rango, así que la nota cae dentro
+    // del rango audible. Si el usuario cambia el rango después, las
+    // notas fuera del nuevo rango simplemente no suenan.
     const transport = transportRef.current
-    const localTime = transport ? transport.seconds % loopLength : 0
+    const localTime = transport ? transport.seconds : 0
 
     // Live: la nota suena siempre que el playhead esté corriendo o no.
     // Esto da feedback inmediato al usuario aunque esté en modo "stop".
@@ -268,7 +352,7 @@ export function useCreativeMode({ bpm = 100 } = {}) {
         }
       }),
     )
-  }, [activeTrackId, isPlaying, loopLength])
+  }, [activeTrackId, isPlaying])
 
   // -------------------------------------------------------------------
   // Acciones sobre tracks. Cada una actualiza state + audio engine.
@@ -341,8 +425,14 @@ export function useCreativeMode({ bpm = 100 } = {}) {
   // Edita un evento in-place (panel de edición con inputs). El evento
   // mantiene la misma posición en el array para no romper el key={i}
   // de los rectángulos — los eventos de después mantienen su índice.
-  // Clampeamos localTime a [0, loopLength] y duration a [0.01, loopLength]
+  // Clampeamos localTime a [0, cycleLength] y duration a [0.01, cycleLength]
   // para que un input vacío o negativo no rompa el Part.
+  // Localtime está en [0, LOOP_MAX_SECONDS] (la timeline completa hasta 3
+  // min). El rango audible lo define Transport.loopStart/loopEnd. El
+  // input del editor (en CreativeEventEditor) deja al usuario meter
+  // cualquier número; clampeamos aquí para que el Part no se rompa.
+  const LOCALTIME_MIN = 0
+  const LOCALTIME_MAX = 180
   const updateEvent = useCallback(
     (trackId, eventIndex, updates) => {
       setTracks((prev) =>
@@ -354,10 +444,10 @@ export function useCreativeMode({ bpm = 100 } = {}) {
               if (i !== eventIndex) return e
               const next = { ...e, ...updates }
               if (typeof next.localTime === 'number') {
-                next.localTime = Math.max(0, Math.min(loopLength, next.localTime))
+                next.localTime = Math.max(LOCALTIME_MIN, Math.min(LOCALTIME_MAX, next.localTime))
               }
               if (typeof next.duration === 'number') {
-                next.duration = Math.max(0.01, Math.min(loopLength, next.duration))
+                next.duration = Math.max(0.01, Math.min(LOCALTIME_MAX, next.duration))
               }
               if (typeof next.velocity === 'number') {
                 next.velocity = Math.max(0, Math.min(1, next.velocity))
@@ -368,7 +458,7 @@ export function useCreativeMode({ bpm = 100 } = {}) {
         })
       )
     },
-    [loopLength],
+    [],
   )
 
   // -------------------------------------------------------------------
@@ -391,9 +481,9 @@ export function useCreativeMode({ bpm = 100 } = {}) {
     try {
       const currentTracks = tracksRef.current
 
-      // Tail = loopLength + reverb decay (2.5s) para capturar la cola
+      // Tail = cycleLength + reverb decay (2.5s) para capturar la cola
       // completa del reverb. Sin esto, el último 2.5s de cola se corta.
-      const renderDuration = loopLength + 2.5
+      const renderDuration = cycleLength + 2.5
 
       const buffer = await Tone.Offline(async ({ transport }) => {
         transport.bpm.value = bpm
@@ -448,7 +538,7 @@ export function useCreativeMode({ bpm = 100 } = {}) {
     } finally {
       setIsExporting(false)
     }
-  }, [bpm, loopLength, isExporting])
+  }, [bpm, cycleLength, isExporting])
 
   return {
     tracks,
@@ -456,7 +546,11 @@ export function useCreativeMode({ bpm = 100 } = {}) {
     setActiveTrack,
     isPlaying,
     playheadTime,
-    loopLength,
+    cycleLength,
+    loopStart,
+    loopEnd,
+    setLoopStart,
+    setLoopEnd,
     numTracks: NUM_TRACKS,
     setInstrument,
     toggleOverwrite,

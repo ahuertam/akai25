@@ -1073,6 +1073,12 @@
   display: flex;
   align-items: flex-end;
   padding: 0 2px 2px;
+  /* ponytail: centramos la label sobre la marca — sin esto la última
+     se cortaba por el overflow: hidden del rule. */
+  transform: translateX(-50%);
+  /* El padding lateral simétrico evita que la línea vertical (border-left)
+     se desplace visualmente al hacer el translateX. */
+  border-left-width: 1px;
 }
 
 .creative-header__beat--bar {
@@ -1086,6 +1092,22 @@
   letter-spacing: 0.05em;
   color: var(--text-dim);
   white-space: nowrap;
+  /* Permite que el texto no rompa la línea. */
+  pointer-events: none;
+}
+
+/* Playhead dentro del ruler: barra vertical púrpura de 2px que recorre
+   la altura del rule. Se posiciona contra el rule (que ya tiene
+   position: relative implícito al tener hijos absolutos — verifico). */
+.creative-header__playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, transparent, var(--accent-bright) 12%, var(--accent) 88%, transparent);
+  box-shadow: 0 0 6px rgba(192, 132, 252, 0.6);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .creative-header__meta {
@@ -1437,6 +1459,18 @@
   transform: scaleY(1.1);
 }
 
+.creative-track__note--dragging {
+  /* ponytail: cursor "grabbing" mientras arrastramos, opacidad un poco
+     reducida para que se vea "en movimiento". Sombra más fuerte para
+     separar visualmente la nota del fondo. */
+  cursor: grabbing !important;
+  opacity: 0.85;
+  box-shadow:
+    0 0 0 1px var(--track-color, var(--accent)),
+    0 0 18px color-mix(in srgb, var(--track-color, var(--accent)) 100%, transparent);
+  z-index: 3;
+}
+
 .creative-hint {
   text-align: center;
   color: var(--text-muted);
@@ -1576,4 +1610,159 @@
 
 .creative-event-editor__btn--danger:hover {
   background: var(--error-bg, rgba(255, 107, 107, 0.12));
+}
+
+/* Control de duración del loop: input numérico con − / +. */
+.creative-header__loop {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.creative-header__loop-btn {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.creative-header__loop-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent-bright);
+}
+
+.creative-header__loop-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 6px;
+  height: 24px;
+}
+
+.creative-header__loop-input:focus-within {
+  border-color: var(--accent);
+}
+
+.creative-header__loop-input input {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 13px;
+  width: 32px;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+
+.creative-header__loop-input input::-webkit-outer-spin-button,
+.creative-header__loop-input input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.creative-header__loop-input input:focus {
+  outline: none;
+}
+
+.creative-header__loop-input span {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.creative-header__loop-seconds {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: 6px;
+}
+
+.creative-header__bpm {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin-left: 4px;
+}
+
+/* Rango del loop editable: dos inputs numéricos (Inicio / Final) en
+   segundos. Reemplaza el viejo control de loopBeats (negras). */
+.creative-header__time-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.creative-header__time-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 6px;
+  height: 24px;
+}
+
+.creative-header__time-field:focus-within {
+  border-color: var(--accent);
+}
+
+.creative-header__time-field > span {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.creative-header__time-field > input {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 13px;
+  width: 48px;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+
+.creative-header__time-field > input::-webkit-outer-spin-button,
+.creative-header__time-field > input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.creative-header__time-field > input:focus {
+  outline: none;
+}
+
+.creative-header__time-field > small {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.creative-header__time-sep {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.creative-header__loop-duration {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
 }

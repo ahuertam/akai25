@@ -1,5 +1,6 @@
 import * as Tone from 'tone'
 import { Instrument as ToneInstrument } from 'tone/build/esm/instrument/Instrument.js'
+import { midiToNoteName } from '../utils/notes.js'
 
 // Estado interno del sintetizador. Usamos un `let` (no `const`) y un getter
 // para poder intercambiar el instrumento en caliente sin que los hooks
@@ -59,6 +60,135 @@ masterReverb.generate().catch((err) => {
   // interno de Tone.js mantiene la señal pasando en seco.
   console.warn('No se pudo generar la IR del reverb:', err)
 })
+
+// ponytail: presets basados en samples reales (carpeta public/samples/
+// — movidos desde src/audio/samples para que Vite los sirva como
+// estáticos). Cada Tone.Sampler mapea archivos a MIDI notes
+// consecutivas empezando en C2 (MIDI 36). El usuario toca diferentes
+// notas para escuchar diferentes samples. Las listas de archivos
+// están hardcoded (import.meta.glob requiere path literal y el
+// bundle sería enorme con 200+ paths). Definidas ANTES de
+// INSTRUMENT_PRESETS para que estén en scope cuando se evalúa el
+// object literal (de lo contrario TDZ → ReferenceError en runtime).
+const ACE_FILES = [
+  'CLAVE.WAV', 'HHCL.WAV', 'HHOP.WAV',
+  'KICK1.WAV', 'KICK2.WAV', 'KICK3.WAV',
+  'PERC1.WAV', 'PERC2.WAV', 'PERC3.WAV', 'PERC4.WAV', 'PERC5.WAV', 'PERC6.WAV', 'PERC7.WAV',
+  'SNARE1.WAV', 'SNARE2.WAV', 'SNARE3.WAV',
+]
+
+const MPC2000_FILES = [
+  '808_HH__CL.wav', '808_HH__OP.wav', '808_KICK.wav', '808_LNG_KICK.wav', '808_SNARE.wav',
+  'CRASH__1.wav', 'CRASH_CYM.wav', 'EFEX_CY02_SA.wav',
+  'F_CLAP_1.wav', 'F_CLAP_2.wav', 'HH_THIN.wav', 'HH_THIN__OP.wav',
+  'HIP_HH_1.wav', 'HIP_KICK.wav', 'HIP_LHH.wav', 'HIP_SN_7.wav', 'HIP_S_SN.wav',
+  'HOUC_TOM__SA.wav', 'KICK_F.wav', 'KICK_OF_1B.wav',
+  'M16_RIDE.wav', 'MHBB_SN.wav',
+  'NEW_FX1TOM.wav', 'NORI_SN_0.wav', 'NR_CRS_A.wav', 'NR_HH_C_A1.wav', 'NR_HH_L_A5.wav',
+  'NR_SPLASH.wav', 'NR_TOM_F.wav', 'NR_TOM_H.wav', 'NR_TOM_L.wav', 'NR_TOM_M.wav',
+  'P_SN_RIM.wav', 'PW_MIX_SD02S.wav', 'RESO_CYN_1.wav', 'REV_SLAP.wav',
+  'ST_AMBSN7.wav', 'SY_TOM_1.wav', 'THIN_CRASH1.wav', 'THIN_HH_FT.wav', 'THIN_RIDE.wav',
+  'TT_HH12_F8.wav',
+]
+
+const NES_FILES = [
+  'BM Sound 6.wav', 'BM Sound 7.wav', 'BM Sound 8.wav',
+  'CO Sound 31.wav', 'CO Sound 32.wav', 'CO Sound 33.wav',
+  'CV Sound 18.wav', 'CV Sound 19.wav', 'CV Sound 25.wav',
+  'FF Sound 39.wav',
+  'GO Sound 44.wav', 'GO Sound 45.wav', 'GO Sound 46.wav',
+  'LZ Sound 52.wav', 'LZ Sound 54.wav', 'LZ Sound 55.wav', 'LZ Sound 552.wav',
+  'LZ Sound 56.wav', 'LZ Sound 57.wav',
+  'MA Sound 100.wav', 'MA Sound 96.wav', 'MA Sound 97.wav', 'MA Sound 98.wav', 'MA Sound 99.wav',
+  'ME Sound 74.wav', 'ME Sound 77.wav', 'ME Sound 78.wav', 'ME Sound 81.wav',
+  'MM Sound 62.wav', 'MM Sound 63.wav', 'MM Sound 64.wav', 'MM Sound 65.wav', 'MM Sound 66.wav',
+  'MM Sound 67.wav', 'MM Sound 69.wav', 'MM Sound 70.wav',
+  'NG Sound 90.wav', 'NG Sound 91.wav', 'NG Sound 92.wav',
+  'PB Sound 94.wav',
+  'PO Sound 83.wav', 'PO Sound 84.wav', 'PO Sound 85.wav', 'PO Sound 86.wav', 'PO Sound 87.wav',
+  'PO Sound 88.wav', 'PO Sound 89.wav',
+]
+
+const PTX8_FILES = [
+  'BDrum1.wav', 'BDrum2.wav',
+  'Bongo1.wav', 'Bongo2.wav',
+  'Clap.wav',
+  'Conga1.wav', 'Conga2.wav',
+  'Cowbell.wav',
+  'Crash.wav',
+  'CymRide.wav',
+  'Funky1.wav', 'Funky2.wav', 'Funky3.wav',
+  'HighTom1.wav', 'HighTom2.wav', 'HighTom3.wav',
+  'Hihat1.wav', 'Hihat2.wav', 'Hihat3.wav',
+  'Jamblock1.wav', 'Jamblock2.wav',
+  'LowTom1.wav', 'LowTom2.wav', 'LowTom3.wav',
+  'MidTom1.wav', 'MidTom2.wav', 'MidTom3.wav',
+  'Noise.WAV',
+  'RimSlap.wav',
+  'Snare1.wav', 'Snare2.wav', 'Snare3.WAV', 'Snare4.WAV',
+  'TimbaleHigh.wav', 'TimbaleLow.wav', 'TimbaleMid.wav',
+]
+
+// ponytail: SDS2000 tiene 8 subcarpetas × 5 tipos = 40 samples en un
+// solo Sampler. Detalle importante: los nombres de archivo tienen
+// ESPACIO entre "SDS2000" y el tipo ("SDS2000 BD1.wav", NO
+// "SDS2000_BD1.wav"). Y la extensión cambia de `.wav` a `.WAV` a
+// partir de Factory3. Si el path no coincide exacto, el Sampler hace
+// 404 silencioso y no suena nada — de ahí "no se oye nada en sds2000".
+const SDS2000_FILES = (() => {
+  const out = []
+  for (let f = 1; f <= 8; f++) {
+    const prefix = `SDS2000_Factory${f}/`
+    // Factory1-2 son .wav (lowercase); Factory3-8 son .WAV.
+    const ext = f <= 2 ? 'wav' : 'WAV'
+    for (const stem of ['BD', 'HT', 'LT', 'MT', 'SN']) {
+      out.push(`${prefix}SDS2000 ${stem}${f}.${ext}`)
+    }
+  }
+  return out
+})()
+
+const SIMMONS_FILES = Array.from(
+  { length: 25 },
+  (_, i) => `${String(i + 1).padStart(2, '0')}.wav`,
+)
+
+const SPECDRUM_FILES = [
+  'afro_1_trunk.wav', 'afro_2_buash.wav', 'afro_3_hiconga.wav', 'afro_4_loconga.wav',
+  'afro_5_clave.wav', 'afro_6_coconut.wav', 'afro_7_guiro.wav', 'afro_8_whistle.wav',
+  'electro_1_e_kick.wav', 'electro_2_e_snare.wav', 'electro_3_e_mitom.wav', 'electro_4_e_lotom.wav',
+  'electro_5_e_peow.wav', 'electro_6_e_hihat.wav', 'electro_7_e_cymb.wav', 'electro_8_e_clap.wav',
+  'latin_1_kick_d.wav', 'latin_2_snare_h.wav', 'latin_3_hi_timb.wav', 'latin_4_lo_timb.wav',
+  'latin_5_handcow.wav', 'latin_6_stick.wav', 'latin_7_cabrash.wav', 'latin_8_tambori.wav',
+  'orig_1_kick.wav', 'orig_2_snare.wav', 'orig_3_mid_tom.wav', 'orig_4_low_tom.wav',
+  'orig_5_cowbell.wav', 'orig_6_hihat_c.wav', 'orig_7_hihat_o.wav', 'orig_8_clap.wav',
+]
+
+/**
+ * Construye un preset tipo Sampler a partir de un folder. Mapea los
+ * archivos en `files` a MIDI notes consecutivas desde C2 (MIDI 36). El
+ * usuario toca diferentes notas para escuchar diferentes samples.
+ */
+function samplerPreset(folder, files, label, description) {
+  const urls = {}
+  for (let i = 0; i < files.length && i < 84; i++) {
+    const note = midiToNoteName(36 + i)
+    urls[note] = files[i]
+  }
+  return {
+    label,
+    description,
+    create: () =>
+      new Tone.Sampler({
+        urls,
+        // import.meta.env.BASE_URL vale '/' en dev y '/akai25/' en
+        // producción (configurado en vite.config.js). Los samples
+        // viven en public/samples/<folder>/.
+        baseUrl: `${import.meta.env.BASE_URL}samples/${folder}/`,
+        release: 1,
+      }),
+  }
+}
 
 /**
  * Presets disponibles. Cada entrada incluye un `id` (clave), `label`
@@ -317,7 +447,57 @@ const INSTRUMENT_PRESETS = {
     // positivo en master aquí satura el output fácilmente.
     volume: 0,
   },
+
+  // ---------------------------------------------------------------------
+  // Instrumentos basados en samples reales (Tone.Sampler). Los samples
+  // viven en public/samples/<folder>/. Cada nota MIDI toca un sample
+  // distinto; el mapeo es secuencial desde C2 en orden alfabético.
+  // Toca C2..Bn para escuchar los samples en orden.
+  // ---------------------------------------------------------------------
+  ace: samplerPreset(
+    'Ace',
+    ACE_FILES,
+    'Ace',
+    `Kit de percusión Ace (${ACE_FILES.length} samples) — kicks, snares, hats, perc, clave`,
+  ),
+  mpc2000: samplerPreset(
+    'MPC2000',
+    MPC2000_FILES,
+    'MPC2000',
+    `Kit MPC2000 (${MPC2000_FILES.length} samples) — 808, 909, NR, Funky, etc.`,
+  ),
+  nes: samplerPreset(
+    'NES',
+    NES_FILES,
+    'NES',
+    `Samples estilo 8-bit NES (${NES_FILES.length} samples) — bleeps, leads, percussion retro`,
+  ),
+  ptx8: samplerPreset(
+    'PTX8',
+    PTX8_FILES,
+    'PTX8',
+    `Kit de percusión PTX8 (${PTX8_FILES.length} samples) — bongos, congas, timbales, hats`,
+  ),
+  sds2000: samplerPreset(
+    'SDS2000',
+    SDS2000_FILES,
+    'SDS2000',
+    `Kit SDS2000 — 8 factories (${SDS2000_FILES.length} samples) — BD, HT, LT, MT, SN por factory`,
+  ),
+  simmons: samplerPreset(
+    'Simmons_ClapTrap',
+    SIMMONS_FILES,
+    'Simmons Clap Trap',
+    `Kit Simmons Clap Trap (${SIMMONS_FILES.length} samples) — claps, snares, perc 80s`,
+  ),
+  specdrum: samplerPreset(
+    'SpecDrum',
+    SPECDRUM_FILES,
+    'SpecDrum',
+    `Kit SpecDrum (${SPECDRUM_FILES.length} samples) — afro, electro, latin, original`,
+  ),
 }
+
 
 // ---------------------------------------------------------------------
 // DrumKit — kit de batería estilo General MIDI construido con los
