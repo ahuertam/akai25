@@ -500,12 +500,23 @@ export function useCreativeMode({ bpm = 100 } = {}) {
         // salen sin reverb.
         await reverb.generate()
 
-        currentTracks.forEach((track) => {
-          if (track.events.length === 0 || track.muted) return
+        // Creamos todos los Samplers primero y luego esperamos a que
+        // terminen de descargar /samples/. Sin esto, el primer
+        // triggerAttackRelease lanza "buffer is either not set or not
+        // loaded" porque el render offline empieza antes de que los
+        // fetches en paralelo terminen. Tone.loaded() resuelve cuando
+        // TODOS los buffers pendientes del contexto actual están listos.
+        const activeTrackSynths = []
+        for (const track of currentTracks) {
+          if (track.events.length === 0 || track.muted) continue
           const synth = createInstrumentInstance(track.instrumentId)
           // Cada pista entra por el filter (no directo a destination).
           synth.connect(filter)
+          activeTrackSynths.push({ track, synth })
+        }
+        await Tone.loaded()
 
+        activeTrackSynths.forEach(({ track, synth }) => {
           track.events.forEach((event) => {
             if (synth instanceof Tone.NoiseSynth) {
               synth.triggerAttackRelease(event.duration, event.localTime, event.velocity)
