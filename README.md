@@ -64,23 +64,31 @@ Abre `http://localhost:5173/`, conecta el Akai por USB, pulsa **Conectar** y ace
 
 ## Deploy (GitHub Pages)
 
-El repo publica automáticamente en `https://ahuertam.github.io/akai25/` desde la rama `gh-pages` mediante el workflow `.github/workflows/deploy.yml`. Se dispara en cada push a `main`.
+El sitio se publica en `https://ahuertam.github.io/akai25/` con el deploy nativo de GitHub Pages: cada push a `main` dispara `.github/workflows/deploy.yml`, que compila y sube el artefacto a Pages. **No hay rama `gh-pages`** — el build no se versiona en git.
 
-> ⚠️ **El workflow sube el build a `gh-pages` pero NO puede cambiar la fuente de GitHub Pages.** El repo ya está configurado con la fuente correcta (`gh-pages` → `/ (root)`); si alguna vez se toca esa opción hay que restablecerla a mano:
+> ⚠️ **Pages debe estar configurado con Source = "GitHub Actions"**. Si se cambia a "Deploy from a branch", el workflow falla al desplegar. Para restablecerlo:
 >
-> **UI:** `Settings > Pages > Source > "Deploy from a branch" > Branch: gh-pages > / (root) > Save`
+> **UI:** `Settings > Pages > Build and deployment > Source > "GitHub Actions"`
 >
 > **CLI** (con `gh` autenticado y scope `repo`):
 > ```bash
-> gh api -X PUT /repos/ahuertam/akai25/pages \
->   -f source[branch]=gh-pages \
->   -f source[path]=/ \
->   -f build_type=legacy
+> gh api -X PUT /repos/ahuertam/akai25/pages -f build_type=workflow
 > ```
 >
 > Ojo al verbo: es **PUT**, no `PATCH`. `PATCH /repos/{owner}/{repo}/pages` no existe y devuelve `404 Not Found`.
->
-> Si Pages sirve desde otra rama (p.ej. `main`), el workflow termina "success" pero el sitio sigue mostrando la versión anterior (404 en el bundle compilado, 200 en `/src/main.jsx`).
+
+## Los samples y Git LFS
+
+Los sample packs de `public/samples/` (~1,5 GB de WAV) están versionados con **Git LFS**, así que el repo se clona rápido:
+
+```bash
+git clone https://github.com/ahuertam/akai25.git   # ~1 MB: los samples quedan como punteros
+git lfs pull                                       # baja los ~1,5 GB de audio
+```
+
+Si sólo quieres leer el código, el clon sin LFS te basta. Si vas a tocar los sonidos, `git lfs pull` primero — si no, el build copiará ficheros puntero de 130 bytes en lugar de audio.
+
+Los samples son material de terceros: el pie de la app lleva los créditos y licencias de cada pack (algunos **CC BY-NC-ND**, de uso no comercial), en [`src/components/SampleCredits.jsx`](./src/components/SampleCredits.jsx).
 
 ## Scripts disponibles
 
@@ -163,6 +171,7 @@ El `synth` se almacena en un `let` interno accesible vía getter. Esto permite q
 ## Limitaciones conocidas
 
 - **MIDI solo en Chrome/Edge** — Safari y Firefox no soportan Web MIDI API estable
+- **Los samples necesitan `git lfs pull`** — sin el cliente LFS el clon deja punteros de 130 bytes y el build no produce audio
 - **Bass y Pluck son monofónicos** — solo puede sonar una nota a la vez (es la naturaleza del instrumento)
 - **El visual del teclado cubre C2–C5** — notas fuera de ese rango se muestran en el display grande pero no iluminan ninguna tecla
 - **No hay exportación a Standard MIDI File** — solo JSON propio del proyecto (válido para importar de vuelta, no compatible con DAWs externos)
