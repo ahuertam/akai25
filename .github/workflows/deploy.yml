@@ -44,6 +44,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Los sample packs de public/samples/ están en Git LFS: sin esto el
+          # checkout deja punteros en vez de los WAV y el build sube ficheros
+          # de 130 bytes en lugar de audio.
+          lfs: true
 
       - name: Setup Node
         uses: actions/setup-node@v4
