@@ -1,25 +1,20 @@
 name: Deploy to GitHub Pages
 
 # ---------------------------------------------------------------------------
-# IMPORTANTE: este workflow construye el sitio y hace push a la rama
-# `gh-pages`, pero NO configura la fuente de GitHub Pages. El repo ya
-# está configurado con la fuente correcta (`gh-pages` -> `/ (root)`).
-# Si hay que restablecerla:
+# El sitio se publica con el deploy nativo de GitHub Pages (Actions), no
+# haciendo push del build a una rama `gh-pages`.
 #
-#   UI:  Settings > Pages > Source > "Deploy from a branch"
-#                        > Branch: `gh-pages` > `/ (root)` > Save
+# Motivo: la rama `gh-pages` contenía los 1,5 GB de sample packs en texto
+# plano, así que un `git clone` del repo se descargaba 1,5 GB. Con los
+# samples en Git LFS y sin rama `gh-pages`, el clon del repo baja ~8 MB.
 #
-#   CLI: gh api -X PUT /repos/ahuertam/akai25/pages \
-#          -f source[branch]=gh-pages -f source[path]=/ -f build_type=legacy
+# Requisitos (configuración del repo, se hace una vez):
+#   Settings > Pages > Build and deployment > Source > "GitHub Actions"
 #
-# Ojo al verbo: es PUT, no PATCH (`PATCH .../pages` no existe -> 404).
+#   CLI: gh api -X PUT /repos/ahuertam/akai25/pages -f build_type=workflow
 #
-# Si Pages sigue configurado para servir desde otra rama (p.ej. `main`),
-# el workflow terminará "success" pero el sitio en
-# https://ahuertam.github.io/akai25/ seguirá mostrando la versión
-# incorrecta (404 en el bundle compilado, 200 en /src/main.jsx).
-#
-# Tras cambiar la fuente, el siguiente push ya publica desde `gh-pages`.
+# Ojo al verbo: es PUT, no PATCH (`PATCH /repos/{owner}/{repo}/pages` no
+# existe y devuelve 404 Not Found).
 # ---------------------------------------------------------------------------
 
 # Disparamos en cada push a main y también manualmente desde la UI.
@@ -28,10 +23,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# `contents: write` es necesario para que el runner pueda hacer push a
-# la rama `gh-pages` usando el GITHUB_TOKEN.
+# `pages: write` + `id-token: write` son los permisos que exige
+# actions/deploy-pages. `contents: read` basta para el checkout.
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 # Evita que se ejecuten dos deploys concurrentes.
 concurrency:
@@ -40,6 +37,10 @@ concurrency:
 
 jobs:
   build-and-deploy:
+    # El environment es lo que ata el deployment al site de GitHub Pages.
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -70,15 +71,11 @@ jobs:
           touch dist/.nojekyll
           rm -f dist/CNAME
 
-      - name: Deploy to gh-pages branch
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          publish_branch: gh-pages
-          # No mantener archivos antiguos: queremos un site limpio en cada deploy.
-          keep_files: false
-          # Identidad del commit generado.
-          user_name: 'github-actions[bot]'
-          user_email: 'github-actions[bot]@users.noreply.github.com'
-          commit_message: 'deploy: ${{ github.event.head_commit.message }}'
+          path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
