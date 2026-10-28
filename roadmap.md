@@ -1,4 +1,4 @@
-La aplicación  es una estación de trabajo musical web (Web DAW) ligera que actúa como un puente directo entre tu teclado Akai LPK25 y el navegador, permitiéndote tocar sintetizadores virtuales en tiempo real con latencia mínima gracias a la Web MIDI API. Además de ofrecer una interfaz visual interactiva donde un teclado virtual se ilumina en respuesta a tus ejecuciones, la herramienta integra funcionalidades de grabación y reproducción que permiten capturar tus ideas musicales, escucharlas y experimentar con diferentes sonidos, todo ello corriendo nativamente en una pestaña de Chrome o Edge sin necesidad de instalar ningún driver o software adicional.
+La aplicación  es una estación de trabajo musical web (Web DAW) ligera que actúa como un puente directo entre tu teclado Akai MPK25 y el navegador, permitiéndote tocar sintetizadores virtuales en tiempo real con latencia mínima gracias a la Web MIDI API. Además de ofrecer una interfaz visual interactiva donde un teclado virtual se ilumina en respuesta a tus ejecuciones, la herramienta integra funcionalidades de grabación y reproducción que permiten capturar tus ideas musicales, escucharlas y experimentar con diferentes sonidos, todo ello corriendo nativamente en una pestaña de Chrome o Edge sin necesidad de instalar ningún driver o software adicional.
 
 
 
@@ -9,7 +9,7 @@ Tone.js (maneja la complejidad matemática del audio y el reloj).
 Standard CSS (no necesitas Tailwind ni librerías de UI complejas para esto, manténlo ligero).
 
 🚀 Hito 1: La Fundación (Conexión y Sonido)
-Objetivo: Lograr que al presionar una tecla de tu Akai LPK25, suene una nota en el navegador.
+Objetivo: Lograr que al presionar una tecla de tu Akai MPK25, suene una nota en el navegador.
 
 Configuración del Entorno:
 Crear proyecto con Vite (npm create vite@latest).

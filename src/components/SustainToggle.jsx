@@ -2,7 +2,7 @@
  * Toggle visual del pedal sustain. Es un botón accesible que cambia entre
  * pisado/suelto. El estado real viene del CC#64 del MIDI; este botón
  * ofrece una alternativa cuando no hay pedal físico conectado (típico
- * en el LPK25 que sólo tiene mod wheel y pitch wheel).
+ * en el MPK25 que sólo tiene mod wheel y pitch wheel).
  */
 export function SustainToggle({ isOn, onToggle }) {
   return (
