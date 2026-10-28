@@ -1,14 +1,35 @@
 # AKAI25 Web DAW
 
-Estación de trabajo musical web (Web DAW) ligera que actúa como puente directo entre el teclado **Akai LPK25** y el navegador. Permite tocar sintetizadores virtuales en tiempo real con latencia mínima gracias a la Web MIDI API, grabar ideas musicales, escucharlas y experimentar con diferentes sonidos — todo corriendo nativamente en una pestaña de Chrome o Edge sin instalar drivers ni software adicional.
+Estación de trabajo musical web (Web DAW) ligera que actúa como puente directo entre el teclado **Akai MPK25** y el navegador. Permite tocar sintetizadores virtuales en tiempo real con latencia mínima gracias a la Web MIDI API, grabar ideas musicales, escucharlas y experimentar con diferentes sonidos — todo corriendo nativamente en una pestaña de Chrome o Edge sin instalar drivers ni software adicional.
 
 ![Status](https://img.shields.io/badge/status-MVP-success)
 ![Stack](https://img.shields.io/badge/stack-Vite%20%2B%20React%20%2B%20Tone.js-blueviolet)
 ![Browser](https://img.shields.io/badge/browser-Chrome%20%7C%20Edge-blue)
+[![Demo en vivo](https://img.shields.io/badge/demo-Ver%20demo-ff69b4)](https://ahuertam.github.io/akai25/)
+
+## Demo en vivo
+
+👉 **[ahuertam.github.io/akai25](https://ahuertam.github.io/akai25/)** — build de producción, desplegado desde la rama `gh-pages` en cada push a `main`.
+
+La app pide permiso MIDI al navegador, así que hace falta **Chrome o Edge** (Safari y Firefox no tienen Web MIDI API estable). Sin un MPK25 conectado, el teclado virtual de la pantalla se toca con el ratón y todo —sonido, grabación y persistencia— funciona igual.
+
+### Cómo grabo la demo
+
+El GIF de la demo son ~30 s grabados en local siguiendo este flujo:
+
+1. `npm run dev` y abrir `http://localhost:5173/`
+2. Conectar el MPK25 por USB, pulsar **🎹 Conectar** y aceptar el permiso MIDI
+3. Tocar una melodía corta — el teclado virtual de la pantalla se ilumina al unísono
+4. Cambiar de instrumento en el selector para que se oiga la diferencia entre synth y piano
+5. **🔴 Grabar** → tocar otra frase → **⏹ Parar**
+6. **▶ Reproducir** — las teclas se mueven solas al sonar la secuencia
+7. **⬇ Descargar** para exportar la grabación
+
+Para convertir la grabación en GIF: QuickTime (`⌘⌃N` → *Area seleccionada*) para el clip y `ffmpeg -i demo.mov -vf "fps=15,scale=800:-1:flags=lanczos" demo.gif` para el GIF.
 
 ## Características
 
-- 🎹 **Conexión MIDI directa** con el Akai LPK25 vía Web MIDI API (sin drivers, sin software extra)
+- 🎹 **Conexión MIDI directa** con el Akai MPK25 vía Web MIDI API (sin drivers, sin software extra)
 - 🎨 **Teclado virtual con feedback visual** — 3 octavas (C2–C5) que se iluminan al ritmo de la ejecución
 - 🎚️ **5 sintetizadores** de Tone.js intercambiables en caliente:
   - **Synth** — PolySynth triangular genérico
@@ -26,7 +47,7 @@ Estación de trabajo musical web (Web DAW) ligera que actúa como puente directo
 ## Requisitos
 
 - **Navegador**: Chrome o Edge (los únicos con soporte estable de Web MIDI API)
-- **Hardware**: Akai LPK25 u otro controlador MIDI USB
+- **Hardware**: Akai MPK25 u otro controlador MIDI USB
 - **Sistema**: macOS, Windows o Linux con un puerto USB disponible
 
 ## Inicio rápido
@@ -45,7 +66,7 @@ Abre `http://localhost:5173/`, conecta el Akai por USB, pulsa **Conectar** y ace
 
 El repo publica automáticamente en `https://ahuertam.github.io/akai25/` desde la rama `gh-pages` mediante el workflow `.github/workflows/deploy.yml`. Se dispara en cada push a `main`.
 
-> ⚠️ **Requisito manual la primera vez:** el workflow sube el build a `gh-pages`, pero **no puede cambiar la fuente de GitHub Pages**. Hay que configurarla a mano en la UI del repo (o por CLI) **una sola vez**:
+> ⚠️ **El workflow sube el build a `gh-pages` pero NO puede cambiar la fuente de GitHub Pages.** El repo ya está configurado con la fuente correcta (`gh-pages` → `/ (root)`); si alguna vez se toca esa opción hay que restablecerla a mano:
 >
 > **UI:** `Settings > Pages > Source > "Deploy from a branch" > Branch: gh-pages > / (root) > Save`
 >
@@ -57,7 +78,9 @@ El repo publica automáticamente en `https://ahuertam.github.io/akai25/` desde l
 >   -f build_type=legacy
 > ```
 >
-> Si no se hace, el workflow termina "success" pero el sitio sigue mostrando la versión anterior (404 en el bundle compilado, 200 en `/src/main.jsx`) porque Pages estará sirviendo desde otra rama (p.ej. `main`).
+> Ojo al verbo: es **PUT**, no `PATCH`. `PATCH /repos/{owner}/{repo}/pages` no existe y devuelve `404 Not Found`.
+>
+> Si Pages sirve desde otra rama (p.ej. `main`), el workflow termina "success" pero el sitio sigue mostrando la versión anterior (404 en el bundle compilado, 200 en `/src/main.jsx`).
 
 ## Scripts disponibles
 
